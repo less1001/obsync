@@ -1,9 +1,9 @@
 {
   "id": "wechat-obsync",
   "name": "WeChat Obsync",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "minAppVersion": "1.5.0",
-  "description": "Sync WeChat Official Account articles from a Mini Program into Obsidian.",
+  "description": "Sync WeChat Official Account articles and files from a Mini Program.",
   "author": "Obsync",
   "isDesktopOnly": false
 }
