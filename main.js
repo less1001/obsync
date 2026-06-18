@@ -60,7 +60,8 @@ var DEFAULT_SETTINGS = {
   userId: "",
   syncFolder: "\u5FAE\u4FE1\u516C\u4F17\u53F7\u6587\u7AE0",
   deviceName: "Obsidian",
-  syncIntervalMinutes: 5
+  syncIntervalMinutes: 5,
+  localizeImages: true
 };
 var ObsyncPlugin = class extends import_obsidian.Plugin {
   constructor() {
@@ -259,7 +260,15 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
     const date = article.publishedAt || article.savedAt.slice(0, 10);
     const baseName = sanitizeFileName(`${date} - ${article.title || "\u672A\u547D\u540D\u516C\u4F17\u53F7\u6587\u7AE0"}`);
     const path = await nextAvailablePath(this.app, folder, baseName);
-    await this.app.vault.create(path, formatArticleMarkdown(article));
+    let content = formatArticleMarkdown(article);
+    if (this.settings.localizeImages) {
+      try {
+        content = await this.localizeImages(content, folder);
+      } catch (err) {
+        console.warn("Obsync: Image localization failed, using original URLs", err);
+      }
+    }
+    await this.app.vault.create(path, content);
     return path;
   }
   async writeBinaryFile(article) {
@@ -275,6 +284,44 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
       await this.app.vault.createBinary(path, buffer);
     }
     return path;
+  }
+  async localizeImages(markdownContent, articleFolder) {
+    const imageRegex = /!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g;
+    const matches = [...markdownContent.matchAll(imageRegex)];
+    if (matches.length === 0) return markdownContent;
+    const attachmentFolder = (0, import_obsidian.normalizePath)(`${articleFolder}/attachments`);
+    await ensureFolder(this.app, attachmentFolder);
+    let result = markdownContent;
+    let downloadCount = 0;
+    for (const match of matches) {
+      const [fullMatch, altText, imageUrl] = match;
+      try {
+        const response = await (0, import_obsidian.requestUrl)({ url: imageUrl });
+        if (response.status >= 200 && response.status < 300) {
+          const contentType = response.headers["content-type"] || "";
+          let ext = ".jpg";
+          if (contentType.includes("png")) ext = ".png";
+          else if (contentType.includes("gif")) ext = ".gif";
+          else if (contentType.includes("webp")) ext = ".webp";
+          else if (contentType.includes("svg")) ext = ".svg";
+          const imgFileName = `img_${downloadCount + 1}${ext}`;
+          const imgPath = (0, import_obsidian.normalizePath)(`${attachmentFolder}/${imgFileName}`);
+          const existing = this.app.vault.getAbstractFileByPath(imgPath);
+          if (!existing) {
+            await this.app.vault.createBinary(imgPath, response.arrayBuffer);
+          }
+          const relativePath = `attachments/${imgFileName}`;
+          result = result.replace(fullMatch, `![${altText}](${relativePath})`);
+          downloadCount++;
+        }
+      } catch (err) {
+        console.warn(`Obsync: Failed to download image: ${imageUrl}`, err);
+      }
+    }
+    if (downloadCount > 0) {
+      console.log(`Obsync: Downloaded ${downloadCount} images for article`);
+    }
+    return result;
   }
 };
 var ObsyncSettingTab = class extends import_obsidian.PluginSettingTab {
@@ -313,6 +360,12 @@ var ObsyncSettingTab = class extends import_obsidian.PluginSettingTab {
       (text) => text.setValue(String(this.plugin.settings.syncIntervalMinutes)).onChange(async (value) => {
         const parsed = Number(value);
         this.plugin.settings.syncIntervalMinutes = Number.isFinite(parsed) && parsed > 0 ? parsed : 5;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian.Setting(containerEl).setName("\u4E0B\u8F7D\u6587\u7AE0\u56FE\u7247\u5230\u672C\u5730").setDesc("\u5C06\u6587\u7AE0\u4E2D\u7684\u56FE\u7247\u4E0B\u8F7D\u5230\u7B14\u8BB0\u5E93\uFF0C\u907F\u514D\u5FAE\u4FE1\u9632\u76D7\u94FE\u5BFC\u81F4\u56FE\u7247\u65E0\u6CD5\u663E\u793A\u3002").addToggle(
+      (toggle) => toggle.setValue(this.plugin.settings.localizeImages).onChange(async (value) => {
+        this.plugin.settings.localizeImages = value;
         await this.plugin.saveSettings();
       })
     );

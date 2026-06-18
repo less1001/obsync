@@ -24,6 +24,7 @@ interface ObsyncSettings {
   syncFolder: string;
   deviceName: string;
   syncIntervalMinutes: number;
+  localizeImages: boolean;
 }
 
 const DEFAULT_SETTINGS: ObsyncSettings = {
@@ -32,7 +33,8 @@ const DEFAULT_SETTINGS: ObsyncSettings = {
   userId: "",
   syncFolder: "微信公众号文章",
   deviceName: "Obsidian",
-  syncIntervalMinutes: 5
+  syncIntervalMinutes: 5,
+  localizeImages: true
 };
 
 export default class ObsyncPlugin extends Plugin {
@@ -252,7 +254,18 @@ export default class ObsyncPlugin extends Plugin {
     const date = article.publishedAt || article.savedAt.slice(0, 10);
     const baseName = sanitizeFileName(`${date} - ${article.title || "未命名公众号文章"}`);
     const path = await nextAvailablePath(this.app, folder, baseName);
-    await this.app.vault.create(path, formatArticleMarkdown(article));
+
+    let content = formatArticleMarkdown(article);
+    // Only localize images if the setting is enabled
+    if (this.settings.localizeImages) {
+      try {
+        content = await this.localizeImages(content, folder);
+      } catch (err) {
+        console.warn("Obsync: Image localization failed, using original URLs", err);
+      }
+    }
+
+    await this.app.vault.create(path, content);
     return path;
   }
 
@@ -271,6 +284,58 @@ export default class ObsyncPlugin extends Plugin {
       await this.app.vault.createBinary(path, buffer);
     }
     return path;
+  }
+
+  private async localizeImages(markdownContent: string, articleFolder: string): Promise<string> {
+    const imageRegex = /!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g;
+    const matches = [...markdownContent.matchAll(imageRegex)];
+    
+    if (matches.length === 0) return markdownContent;
+
+    const attachmentFolder = normalizePath(`${articleFolder}/attachments`);
+    await ensureFolder(this.app, attachmentFolder);
+
+    let result = markdownContent;
+    let downloadCount = 0;
+    
+    for (const match of matches) {
+      const [fullMatch, altText, imageUrl] = match;
+      try {
+        const response = await requestUrl({ url: imageUrl });
+        if (response.status >= 200 && response.status < 300) {
+          // Determine file extension from URL or content-type
+          const contentType = response.headers["content-type"] || "";
+          let ext = ".jpg";
+          if (contentType.includes("png")) ext = ".png";
+          else if (contentType.includes("gif")) ext = ".gif";
+          else if (contentType.includes("webp")) ext = ".webp";
+          else if (contentType.includes("svg")) ext = ".svg";
+          
+          const imgFileName = `img_${downloadCount + 1}${ext}`;
+          const imgPath = normalizePath(`${attachmentFolder}/${imgFileName}`);
+          
+          // Write the binary content
+          const existing = this.app.vault.getAbstractFileByPath(imgPath);
+          if (!existing) {
+            await this.app.vault.createBinary(imgPath, response.arrayBuffer);
+          }
+          
+          // Replace the URL with relative path
+          const relativePath = `attachments/${imgFileName}`;
+          result = result.replace(fullMatch, `![${altText}](${relativePath})`);
+          downloadCount++;
+        }
+      } catch (err) {
+        // If download fails, keep the original URL
+        console.warn(`Obsync: Failed to download image: ${imageUrl}`, err);
+      }
+    }
+    
+    if (downloadCount > 0) {
+      console.log(`Obsync: Downloaded ${downloadCount} images for article`);
+    }
+    
+    return result;
   }
 }
 
@@ -333,6 +398,16 @@ class ObsyncSettingTab extends PluginSettingTab {
         text.setValue(String(this.plugin.settings.syncIntervalMinutes)).onChange(async (value) => {
           const parsed = Number(value);
           this.plugin.settings.syncIntervalMinutes = Number.isFinite(parsed) && parsed > 0 ? parsed : 5;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("下载文章图片到本地")
+      .setDesc("将文章中的图片下载到笔记库，避免微信防盗链导致图片无法显示。")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.localizeImages).onChange(async (value) => {
+          this.plugin.settings.localizeImages = value;
           await this.plugin.saveSettings();
         })
       );
