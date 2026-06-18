@@ -164,11 +164,26 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
       const errors = [];
       for (const article of response.articles) {
         try {
-          let path = syncIdToPath.get(article.id);
-          if (path) {
+          const isBinary = article.excerpt && (article.excerpt.includes("/") || article.excerpt.startsWith("image/") || article.excerpt.startsWith("application/"));
+          let path = "";
+          if (isBinary) {
+            const folder = (0, import_obsidian.normalizePath)(this.settings.syncFolder || DEFAULT_SETTINGS.syncFolder);
+            const fileName = sanitizeFileName(article.title || "\u672A\u547D\u540D\u6587\u4EF6");
+            path = (0, import_obsidian.normalizePath)(`${folder}/${fileName}`);
+          } else {
+            const existingPath = syncIdToPath.get(article.id);
+            if (existingPath) {
+              path = existingPath;
+            }
+          }
+          if (path && this.app.vault.getAbstractFileByPath(path)) {
             skipped += 1;
           } else {
-            path = await this.writeArticle(article);
+            if (isBinary) {
+              path = await this.writeBinaryFile(article);
+            } else {
+              path = await this.writeArticle(article);
+            }
             written += 1;
           }
           await apiRequest(this.settings.apiBaseUrl, `/v1/sync/articles/${article.id}/ack`, {
@@ -242,6 +257,20 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
     const baseName = sanitizeFileName(`${date} - ${article.title || "\u672A\u547D\u540D\u516C\u4F17\u53F7\u6587\u7AE0"}`);
     const path = await nextAvailablePath(this.app, folder, baseName);
     await this.app.vault.create(path, formatArticleMarkdown(article));
+    return path;
+  }
+  async writeBinaryFile(article) {
+    const folder = (0, import_obsidian.normalizePath)(this.settings.syncFolder || DEFAULT_SETTINGS.syncFolder);
+    await ensureFolder(this.app, folder);
+    const fileName = sanitizeFileName(article.title || "\u672A\u547D\u540D\u6587\u4EF6");
+    const path = (0, import_obsidian.normalizePath)(`${folder}/${fileName}`);
+    const buffer = base64ToArrayBuffer(article.markdown);
+    const existingFile = this.app.vault.getAbstractFileByPath(path);
+    if (existingFile) {
+      await this.app.vault.modifyBinary(existingFile, buffer);
+    } else {
+      await this.app.vault.createBinary(path, buffer);
+    }
     return path;
   }
 };
@@ -370,4 +399,13 @@ async function nextAvailablePath(app, folder, baseName) {
     index += 1;
   }
   return candidate;
+}
+function base64ToArrayBuffer(base64) {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
 }

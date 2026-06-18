@@ -145,11 +145,28 @@ export default class ObsyncPlugin extends Plugin {
 
       for (const article of response.articles) {
         try {
-          let path = syncIdToPath.get(article.id);
-          if (path) {
+          const isBinary = article.excerpt && (article.excerpt.includes("/") || article.excerpt.startsWith("image/") || article.excerpt.startsWith("application/"));
+          
+          let path = "";
+          if (isBinary) {
+            const folder = normalizePath(this.settings.syncFolder || DEFAULT_SETTINGS.syncFolder);
+            const fileName = sanitizeFileName(article.title || "未命名文件");
+            path = normalizePath(`${folder}/${fileName}`);
+          } else {
+            const existingPath = syncIdToPath.get(article.id);
+            if (existingPath) {
+              path = existingPath;
+            }
+          }
+
+          if (path && this.app.vault.getAbstractFileByPath(path)) {
             skipped += 1;
           } else {
-            path = await this.writeArticle(article);
+            if (isBinary) {
+              path = await this.writeBinaryFile(article);
+            } else {
+              path = await this.writeArticle(article);
+            }
             written += 1;
           }
 
@@ -232,6 +249,23 @@ export default class ObsyncPlugin extends Plugin {
     const baseName = sanitizeFileName(`${date} - ${article.title || "未命名公众号文章"}`);
     const path = await nextAvailablePath(this.app, folder, baseName);
     await this.app.vault.create(path, formatArticleMarkdown(article));
+    return path;
+  }
+
+  private async writeBinaryFile(article: PublicArticle): Promise<string> {
+    const folder = normalizePath(this.settings.syncFolder || DEFAULT_SETTINGS.syncFolder);
+    await ensureFolder(this.app, folder);
+
+    const fileName = sanitizeFileName(article.title || "未命名文件");
+    const path = normalizePath(`${folder}/${fileName}`);
+    
+    const buffer = base64ToArrayBuffer(article.markdown);
+    const existingFile = this.app.vault.getAbstractFileByPath(path);
+    if (existingFile) {
+      await this.app.vault.modifyBinary(existingFile as any, buffer);
+    } else {
+      await this.app.vault.createBinary(path, buffer);
+    }
     return path;
   }
 }
@@ -407,4 +441,14 @@ async function nextAvailablePath(app: App, folder: string, baseName: string): Pr
     index += 1;
   }
   return candidate;
+}
+
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
 }
