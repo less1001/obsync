@@ -1,6 +1,6 @@
-# Obsync (WeChat to Obsidian Sync Plugin)
+# WeChat Obsync
 
-Obsync is a companion Obsidian plugin designed to sync WeChat Official Account articles and notes from the "Obsync 同步助手" WeChat Mini Program directly into your Obsidian Vault.
+WeChat Obsync is a companion Obsidian plugin designed to sync WeChat Official Account articles and notes from the "Obsync 同步助手" WeChat Mini Program directly into your Obsidian Vault.
 
 ## Features
 
@@ -14,14 +14,14 @@ Obsync is a companion Obsidian plugin designed to sync WeChat Official Account a
 
 ### From the Obsidian Community Plugin Store (Pending official listing)
 1. Go to **Settings** -> **Community plugins** -> **Browse**.
-2. Search for `Obsync`.
+2. Search for `WeChat Obsync`.
 3. Click **Install**, then **Enable**.
 
 ### Manual Installation
 1. Download `main.js`, `manifest.json`, and `styles.css` from the latest release.
-2. Create a folder named `obsync` under `.obsidian/plugins/` in your Obsidian Vault.
+2. Create a folder named `wechat-obsync` under `.obsidian/plugins/` in your Obsidian Vault.
 3. Move the downloaded files into that folder.
-4. Reload Obsidian and enable `Obsync` in settings.
+4. Reload Obsidian and enable `WeChat Obsync` in settings.
 
 ## Getting Started
 

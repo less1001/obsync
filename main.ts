@@ -6,6 +6,7 @@ import {
   requestUrl,
   Setting,
   TFolder,
+  TFile,
   normalizePath
 } from "obsidian";
 import type {
@@ -66,7 +67,8 @@ export default class ObsyncPlugin extends Plugin {
   }
 
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const data = (await this.loadData()) as Partial<ObsyncSettings> | null;
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, data ?? {});
   }
 
   async saveSettings() {
@@ -89,29 +91,31 @@ export default class ObsyncPlugin extends Plugin {
     if (this.bindingPollInterval) {
       window.clearInterval(this.bindingPollInterval);
     }
-    this.bindingPollInterval = window.setInterval(async () => {
-      try {
-        const status = await apiRequest<BindStatusResponse>(
-          this.settings.apiBaseUrl,
-          `/v1/bind/status?code=${encodeURIComponent(code)}`
-        );
-        onStatus(status);
-        if (status.status === "confirmed" && status.token) {
-          this.settings.token = status.token;
-          this.settings.userId = status.userId ?? "";
-          await this.saveSettings();
-          window.clearInterval(this.bindingPollInterval);
-          this.bindingPollInterval = undefined;
-          new Notice("Obsync 绑定成功。");
-          await this.syncNow(true);
+    this.bindingPollInterval = window.setInterval(() => {
+      (async () => {
+        try {
+          const status = await apiRequest<BindStatusResponse>(
+            this.settings.apiBaseUrl,
+            `/v1/bind/status?code=${encodeURIComponent(code)}`
+          );
+          onStatus(status);
+          if (status.status === "confirmed" && status.token) {
+            this.settings.token = status.token;
+            this.settings.userId = status.userId ?? "";
+            await this.saveSettings();
+            window.clearInterval(this.bindingPollInterval);
+            this.bindingPollInterval = undefined;
+            new Notice("Obsync 绑定成功。");
+            await this.syncNow(true);
+          }
+          if (status.status === "expired") {
+            window.clearInterval(this.bindingPollInterval);
+            this.bindingPollInterval = undefined;
+          }
+        } catch (error) {
+          console.error("Obsync binding poll failed", error);
         }
-        if (status.status === "expired") {
-          window.clearInterval(this.bindingPollInterval);
-          this.bindingPollInterval = undefined;
-        }
-      } catch (error) {
-        console.error("Obsync binding poll failed", error);
-      }
+      })();
     }, 2500);
   }
 
@@ -261,9 +265,9 @@ export default class ObsyncPlugin extends Plugin {
     
     const buffer = base64ToArrayBuffer(article.markdown);
     const existingFile = this.app.vault.getAbstractFileByPath(path);
-    if (existingFile) {
-      await this.app.vault.modifyBinary(existingFile as any, buffer);
-    } else {
+    if (existingFile instanceof TFile) {
+      await this.app.vault.modifyBinary(existingFile, buffer);
+    } else if (!existingFile) {
       await this.app.vault.createBinary(path, buffer);
     }
     return path;
@@ -282,7 +286,7 @@ class ObsyncSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Obsync 同步助手" });
+    new Setting(containerEl).setName("Obsync 同步助手").setHeading();
     containerEl.createEl("p", {
       text: this.plugin.settings.token
         ? "已绑定。小程序保存的文章会自动进入当前笔记库。"

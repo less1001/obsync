@@ -94,7 +94,8 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
     }
   }
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const data = await this.loadData();
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, data != null ? data : {});
   }
   async saveSettings() {
     await this.saveData(this.settings);
@@ -114,30 +115,32 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
     if (this.bindingPollInterval) {
       window.clearInterval(this.bindingPollInterval);
     }
-    this.bindingPollInterval = window.setInterval(async () => {
-      var _a;
-      try {
-        const status = await apiRequest(
-          this.settings.apiBaseUrl,
-          `/v1/bind/status?code=${encodeURIComponent(code)}`
-        );
-        onStatus(status);
-        if (status.status === "confirmed" && status.token) {
-          this.settings.token = status.token;
-          this.settings.userId = (_a = status.userId) != null ? _a : "";
-          await this.saveSettings();
-          window.clearInterval(this.bindingPollInterval);
-          this.bindingPollInterval = void 0;
-          new import_obsidian.Notice("Obsync \u7ED1\u5B9A\u6210\u529F\u3002");
-          await this.syncNow(true);
+    this.bindingPollInterval = window.setInterval(() => {
+      (async () => {
+        var _a;
+        try {
+          const status = await apiRequest(
+            this.settings.apiBaseUrl,
+            `/v1/bind/status?code=${encodeURIComponent(code)}`
+          );
+          onStatus(status);
+          if (status.status === "confirmed" && status.token) {
+            this.settings.token = status.token;
+            this.settings.userId = (_a = status.userId) != null ? _a : "";
+            await this.saveSettings();
+            window.clearInterval(this.bindingPollInterval);
+            this.bindingPollInterval = void 0;
+            new import_obsidian.Notice("Obsync \u7ED1\u5B9A\u6210\u529F\u3002");
+            await this.syncNow(true);
+          }
+          if (status.status === "expired") {
+            window.clearInterval(this.bindingPollInterval);
+            this.bindingPollInterval = void 0;
+          }
+        } catch (error) {
+          console.error("Obsync binding poll failed", error);
         }
-        if (status.status === "expired") {
-          window.clearInterval(this.bindingPollInterval);
-          this.bindingPollInterval = void 0;
-        }
-      } catch (error) {
-        console.error("Obsync binding poll failed", error);
-      }
+      })();
     }, 2500);
   }
   async syncNow(showNotice = false) {
@@ -266,9 +269,9 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
     const path = (0, import_obsidian.normalizePath)(`${folder}/${fileName}`);
     const buffer = base64ToArrayBuffer(article.markdown);
     const existingFile = this.app.vault.getAbstractFileByPath(path);
-    if (existingFile) {
+    if (existingFile instanceof import_obsidian.TFile) {
       await this.app.vault.modifyBinary(existingFile, buffer);
-    } else {
+    } else if (!existingFile) {
       await this.app.vault.createBinary(path, buffer);
     }
     return path;
@@ -284,7 +287,7 @@ var ObsyncSettingTab = class extends import_obsidian.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "Obsync \u540C\u6B65\u52A9\u624B" });
+    new import_obsidian.Setting(containerEl).setName("Obsync \u540C\u6B65\u52A9\u624B").setHeading();
     containerEl.createEl("p", {
       text: this.plugin.settings.token ? "\u5DF2\u7ED1\u5B9A\u3002\u5C0F\u7A0B\u5E8F\u4FDD\u5B58\u7684\u6587\u7AE0\u4F1A\u81EA\u52A8\u8FDB\u5165\u5F53\u524D\u7B14\u8BB0\u5E93\u3002" : "\u8BF7\u5148\u751F\u6210\u7ED1\u5B9A\u7801\uFF0C\u7136\u540E\u5728\u5FAE\u4FE1\u5C0F\u7A0B\u5E8F\u4E2D\u786E\u8BA4\u7ED1\u5B9A\u3002"
     });
