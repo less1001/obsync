@@ -114,6 +114,7 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
   async startBinding() {
     const response = await apiRequest(this.settings.apiBaseUrl, "/v1/bind/start", {
       method: "POST",
+      token: this.settings.token || void 0,
       body: {
         deviceName: this.settings.deviceName || "Obsidian",
         vaultName: this.app.vault.getName()
@@ -345,7 +346,7 @@ var ObsyncSettingTab = class extends import_obsidian.PluginSettingTab {
     containerEl.empty();
     new import_obsidian.Setting(containerEl).setName("Obsync \u540C\u6B65\u52A9\u624B").setHeading();
     containerEl.createEl("p", {
-      text: this.plugin.settings.token ? "\u5DF2\u7ED1\u5B9A\u3002\u5C0F\u7A0B\u5E8F\u4FDD\u5B58\u7684\u6587\u7AE0\u4F1A\u81EA\u52A8\u8FDB\u5165\u5F53\u524D\u7B14\u8BB0\u5E93\u3002" : "\u8BF7\u5148\u751F\u6210\u7ED1\u5B9A\u7801\uFF0C\u7136\u540E\u5728\u5FAE\u4FE1\u5C0F\u7A0B\u5E8F\u4E2D\u786E\u8BA4\u7ED1\u5B9A\u3002"
+      text: this.plugin.settings.token ? "\u5DF2\u7ED1\u5B9A\u3002\u53EF\u7EE7\u7EED\u751F\u6210\u7ED1\u5B9A\u7801\uFF0C\u8BA9\u5176\u4ED6\u624B\u673A\u4E0A\u7684\u5FAE\u4FE1\u52A0\u5165\u5F53\u524D\u7B14\u8BB0\u5E93\u3002" : "\u8BF7\u5148\u751F\u6210\u7ED1\u5B9A\u7801\uFF0C\u7136\u540E\u5728\u5FAE\u4FE1\u5C0F\u7A0B\u5E8F\u4E2D\u786E\u8BA4\u7ED1\u5B9A\u3002"
     });
     new import_obsidian.Setting(containerEl).setName("\u670D\u52A1\u5668\u5730\u5740").setDesc("\u9ED8\u8BA4\u4F7F\u7528Cloudflare HTTPS\u5730\u5740\u3002").addText(
       (text) => text.setPlaceholder(CLOUDFLARE_API_BASE_URL).setValue(this.plugin.settings.apiBaseUrl).onChange(async (value) => {
@@ -378,7 +379,7 @@ var ObsyncSettingTab = class extends import_obsidian.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian.Setting(containerEl).setName("\u751F\u6210\u7ED1\u5B9A\u7801").setDesc("\u5728\u5FAE\u4FE1\u5C0F\u7A0B\u5E8F\u4E2D\u8F93\u5165\u6B64\u7ED1\u5B9A\u7801\u3002").addButton(
+    new import_obsidian.Setting(containerEl).setName("\u751F\u6210\u7ED1\u5B9A\u7801").setDesc(this.plugin.settings.token ? "\u5728\u53E6\u4E00\u53F0\u624B\u673A\u7684\u5FAE\u4FE1\u5C0F\u7A0B\u5E8F\u4E2D\u8F93\u5165\u7ED1\u5B9A\u7801\uFF0C\u5373\u53EF\u5171\u540C\u540C\u6B65\u5230\u5F53\u524D\u7B14\u8BB0\u5E93\u3002" : "\u5728\u5FAE\u4FE1\u5C0F\u7A0B\u5E8F\u4E2D\u8F93\u5165\u6B64\u7ED1\u5B9A\u7801\u3002").addButton(
       (button) => button.setButtonText("\u751F\u6210").setCta().onClick(async () => {
         button.setDisabled(true);
         button.setButtonText("\u751F\u6210\u4E2D...");
