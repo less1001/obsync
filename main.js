@@ -54,8 +54,11 @@ function sanitizeFileName(value) {
 }
 
 // main.ts
+var CLOUDFLARE_API_BASE_URL = "https://ob.agentok.top";
+var LEGACY_API_BASE_URL = "https://cloud1-d3gvuz4256fba5e84-1443228054.ap-shanghai.app.tcloudbase.com/obsync";
 var DEFAULT_SETTINGS = {
-  apiBaseUrl: "https://cloud1-d3gvuz4256fba5e84-1443228054.ap-shanghai.app.tcloudbase.com/obsync",
+  settingsVersion: 3,
+  apiBaseUrl: CLOUDFLARE_API_BASE_URL,
   token: "",
   userId: "",
   syncFolder: "\u5FAE\u4FE1\u516C\u4F17\u53F7\u6587\u7AE0",
@@ -97,6 +100,12 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
   async loadSettings() {
     const data = await this.loadData();
     this.settings = Object.assign({}, DEFAULT_SETTINGS, data != null ? data : {});
+    const currentApiBaseUrl = this.settings.apiBaseUrl.replace(/\/+$/, "");
+    if (!currentApiBaseUrl || currentApiBaseUrl === LEGACY_API_BASE_URL) {
+      this.settings.apiBaseUrl = CLOUDFLARE_API_BASE_URL;
+    }
+    if (this.settings.settingsVersion !== 3) this.settings.settingsVersion = 3;
+    await this.saveData(this.settings);
   }
   async saveSettings() {
     await this.saveData(this.settings);
@@ -338,8 +347,8 @@ var ObsyncSettingTab = class extends import_obsidian.PluginSettingTab {
     containerEl.createEl("p", {
       text: this.plugin.settings.token ? "\u5DF2\u7ED1\u5B9A\u3002\u5C0F\u7A0B\u5E8F\u4FDD\u5B58\u7684\u6587\u7AE0\u4F1A\u81EA\u52A8\u8FDB\u5165\u5F53\u524D\u7B14\u8BB0\u5E93\u3002" : "\u8BF7\u5148\u751F\u6210\u7ED1\u5B9A\u7801\uFF0C\u7136\u540E\u5728\u5FAE\u4FE1\u5C0F\u7A0B\u5E8F\u4E2D\u786E\u8BA4\u7ED1\u5B9A\u3002"
     });
-    new import_obsidian.Setting(containerEl).setName("\u670D\u52A1\u5668\u5730\u5740").setDesc("\u9ED8\u8BA4\u4F7F\u7528\u5DF2\u914D\u7F6E\u7684 CloudBase HTTPS \u5730\u5740\u3002").addText(
-      (text) => text.setPlaceholder("https://cloud1-d3gvuz4256fba5e84-1443228054.ap-shanghai.app.tcloudbase.com/obsync").setValue(this.plugin.settings.apiBaseUrl).onChange(async (value) => {
+    new import_obsidian.Setting(containerEl).setName("\u670D\u52A1\u5668\u5730\u5740").setDesc("\u9ED8\u8BA4\u4F7F\u7528Cloudflare HTTPS\u5730\u5740\u3002").addText(
+      (text) => text.setPlaceholder(CLOUDFLARE_API_BASE_URL).setValue(this.plugin.settings.apiBaseUrl).onChange(async (value) => {
         this.plugin.settings.apiBaseUrl = value.replace(/\/+$/, "");
         await this.plugin.saveSettings();
       })

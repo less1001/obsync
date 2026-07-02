@@ -18,6 +18,7 @@ import type {
 import { formatArticleMarkdown, sanitizeFileName } from "./src/markdown";
 
 interface ObsyncSettings {
+  settingsVersion?: number;
   apiBaseUrl: string;
   token: string;
   userId: string;
@@ -27,8 +28,12 @@ interface ObsyncSettings {
   localizeImages: boolean;
 }
 
+const CLOUDFLARE_API_BASE_URL = "https://ob.agentok.top";
+const LEGACY_API_BASE_URL = "https://cloud1-d3gvuz4256fba5e84-1443228054.ap-shanghai.app.tcloudbase.com/obsync";
+
 const DEFAULT_SETTINGS: ObsyncSettings = {
-  apiBaseUrl: "https://cloud1-d3gvuz4256fba5e84-1443228054.ap-shanghai.app.tcloudbase.com/obsync",
+  settingsVersion: 3,
+  apiBaseUrl: CLOUDFLARE_API_BASE_URL,
   token: "",
   userId: "",
   syncFolder: "微信公众号文章",
@@ -71,6 +76,12 @@ export default class ObsyncPlugin extends Plugin {
   async loadSettings() {
     const data = (await this.loadData()) as Partial<ObsyncSettings> | null;
     this.settings = Object.assign({}, DEFAULT_SETTINGS, data ?? {});
+    const currentApiBaseUrl = this.settings.apiBaseUrl.replace(/\/+$/, "");
+    if (!currentApiBaseUrl || currentApiBaseUrl === LEGACY_API_BASE_URL) {
+      this.settings.apiBaseUrl = CLOUDFLARE_API_BASE_URL;
+    }
+    if (this.settings.settingsVersion !== 3) this.settings.settingsVersion = 3;
+    await this.saveData(this.settings);
   }
 
   async saveSettings() {
@@ -360,10 +371,10 @@ class ObsyncSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("服务器地址")
-      .setDesc("默认使用已配置的 CloudBase HTTPS 地址。")
+      .setDesc("默认使用Cloudflare HTTPS地址。")
       .addText((text) =>
         text
-          .setPlaceholder("https://cloud1-d3gvuz4256fba5e84-1443228054.ap-shanghai.app.tcloudbase.com/obsync")
+          .setPlaceholder(CLOUDFLARE_API_BASE_URL)
           .setValue(this.plugin.settings.apiBaseUrl)
           .onChange(async (value) => {
             this.plugin.settings.apiBaseUrl = value.replace(/\/+$/, "");
