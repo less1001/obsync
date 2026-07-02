@@ -92,6 +92,7 @@ export default class ObsyncPlugin extends Plugin {
   async startBinding(): Promise<BindStartResponse> {
     const response = await apiRequest<BindStartResponse>(this.settings.apiBaseUrl, "/v1/bind/start", {
       method: "POST",
+      token: this.settings.token || undefined,
       body: {
         deviceName: this.settings.deviceName || "Obsidian",
         vaultName: this.app.vault.getName()
@@ -365,7 +366,7 @@ class ObsyncSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName("Obsync 同步助手").setHeading();
     containerEl.createEl("p", {
       text: this.plugin.settings.token
-        ? "已绑定。小程序保存的文章会自动进入当前笔记库。"
+        ? "已绑定。可继续生成绑定码，让其他手机上的微信加入当前笔记库。"
         : "请先生成绑定码，然后在微信小程序中确认绑定。"
     });
 
@@ -425,7 +426,7 @@ class ObsyncSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("生成绑定码")
-      .setDesc("在微信小程序中输入此绑定码。")
+      .setDesc(this.plugin.settings.token ? "在另一台手机的微信小程序中输入绑定码，即可共同同步到当前笔记库。" : "在微信小程序中输入此绑定码。")
       .addButton((button) =>
         button.setButtonText("生成").setCta().onClick(async () => {
           button.setDisabled(true);
