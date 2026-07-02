@@ -9,8 +9,12 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run src"
   },
+  "dependencies": {
+    "@obsync/shared": "file:../../packages/shared"
+  },
   "devDependencies": {
     "@types/node": "^22.15.29",
+    "builtin-modules": "^5.0.0",
     "esbuild": "^0.28.1",
     "obsidian": "^1.8.7",
     "typescript": "^5.8.3",

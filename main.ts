@@ -14,7 +14,7 @@ import type {
   BindStatusResponse,
   PublicArticle,
   SyncArticlesResponse
-} from "./src/types";
+} from "@obsync/shared";
 import { formatArticleMarkdown, sanitizeFileName } from "./src/markdown";
 
 interface ObsyncSettings {
@@ -38,7 +38,7 @@ const DEFAULT_SETTINGS: ObsyncSettings = {
   userId: "",
   syncFolder: "微信公众号文章",
   deviceName: "Obsidian",
-  syncIntervalMinutes: 5,
+  syncIntervalMinutes: 1,
   localizeImages: true
 };
 
@@ -48,6 +48,7 @@ export default class ObsyncPlugin extends Plugin {
   private lastSyncTime: Date | null = null;
   private syncInterval: number | undefined;
   private bindingPollInterval: number | undefined;
+  private activeSync: Promise<void> | null = null;
 
   async onload() {
     await this.loadSettings();
@@ -62,6 +63,9 @@ export default class ObsyncPlugin extends Plugin {
       }
     });
     this.scheduleSync();
+    this.app.workspace.onLayoutReady(() => {
+      void this.syncNow(false);
+    });
   }
 
   onunload() {
@@ -76,9 +80,13 @@ export default class ObsyncPlugin extends Plugin {
   async loadSettings() {
     const data = (await this.loadData()) as Partial<ObsyncSettings> | null;
     this.settings = Object.assign({}, DEFAULT_SETTINGS, data ?? {});
-    const currentApiBaseUrl = this.settings.apiBaseUrl.replace(/\/+$/, "");
-    if (!currentApiBaseUrl || currentApiBaseUrl === LEGACY_API_BASE_URL) {
+    if (!this.settings.apiBaseUrl || this.settings.apiBaseUrl.replace(/\/+$/, "") === LEGACY_API_BASE_URL) {
       this.settings.apiBaseUrl = CLOUDFLARE_API_BASE_URL;
+    }
+    if (!data?.settingsVersion) {
+      if (this.settings.syncIntervalMinutes === 5) {
+        this.settings.syncIntervalMinutes = 1;
+      }
     }
     if (this.settings.settingsVersion !== 3) this.settings.settingsVersion = 3;
     await this.saveData(this.settings);
@@ -134,6 +142,20 @@ export default class ObsyncPlugin extends Plugin {
   }
 
   async syncNow(showNotice = false) {
+    if (this.activeSync) {
+      if (showNotice) new Notice("Obsync 正在同步，请稍候。");
+      return this.activeSync;
+    }
+
+    this.activeSync = this.runSync(showNotice);
+    try {
+      await this.activeSync;
+    } finally {
+      this.activeSync = null;
+    }
+  }
+
+  private async runSync(showNotice = false) {
     if (!this.settings.token) {
       if (showNotice) new Notice("Obsync 尚未绑定。");
       return;
@@ -157,13 +179,14 @@ export default class ObsyncPlugin extends Plugin {
       }
 
       let written = 0;
-      let skipped = 0;
+      let updated = 0;
       let failed = 0;
       const errors: string[] = [];
 
       for (const article of response.articles) {
         try {
-          const isBinary = article.excerpt && (article.excerpt.includes("/") || article.excerpt.startsWith("image/") || article.excerpt.startsWith("application/"));
+          const isBinary = article.contentKind === "file" ||
+            (!article.contentKind && article.sourceUrl.includes("/s/file-"));
           
           let path = "";
           if (isBinary) {
@@ -177,8 +200,12 @@ export default class ObsyncPlugin extends Plugin {
             }
           }
 
-          if (path && this.app.vault.getAbstractFileByPath(path)) {
-            skipped += 1;
+          if (!isBinary && path && this.app.vault.getAbstractFileByPath(path) instanceof TFile) {
+            await this.updateArticle(path, article);
+            updated += 1;
+          } else if (isBinary && path && this.app.vault.getAbstractFileByPath(path)) {
+            await this.writeBinaryFile(article);
+            updated += 1;
           } else {
             if (isBinary) {
               path = await this.writeBinaryFile(article);
@@ -200,7 +227,7 @@ export default class ObsyncPlugin extends Plugin {
         }
       }
 
-      if (failed > 0 && written === 0 && skipped === 0) {
+      if (failed > 0 && written === 0 && updated === 0) {
         throw new Error(`同步失败: ${errors.slice(0, 3).join("; ")}`);
       }
 
@@ -209,7 +236,7 @@ export default class ObsyncPlugin extends Plugin {
       if (showNotice) {
         const parts: string[] = [];
         if (written > 0) parts.push(`已同步 ${written} 篇`);
-        if (skipped > 0) parts.push(`忽略重复 ${skipped} 篇`);
+        if (updated > 0) parts.push(`已更新 ${updated} 篇`);
         if (failed > 0) parts.push(`失败 ${failed} 篇`);
         
         if (parts.length > 0) {
@@ -263,7 +290,7 @@ export default class ObsyncPlugin extends Plugin {
     const folder = normalizePath(this.settings.syncFolder || DEFAULT_SETTINGS.syncFolder);
     await ensureFolder(this.app, folder);
 
-    const date = article.publishedAt || article.savedAt.slice(0, 10);
+    const date = (article.publishedAt || article.savedAt).slice(0, 10);
     const baseName = sanitizeFileName(`${date} - ${article.title || "未命名公众号文章"}`);
     const path = await nextAvailablePath(this.app, folder, baseName);
 
@@ -271,7 +298,7 @@ export default class ObsyncPlugin extends Plugin {
     // Only localize images if the setting is enabled
     if (this.settings.localizeImages) {
       try {
-        content = await this.localizeImages(content, folder);
+        content = await this.localizeImages(content, folder, article.id);
       } catch (err) {
         console.warn("Obsync: Image localization failed, using original URLs", err);
       }
@@ -279,6 +306,21 @@ export default class ObsyncPlugin extends Plugin {
 
     await this.app.vault.create(path, content);
     return path;
+  }
+
+  private async updateArticle(path: string, article: PublicArticle): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) return;
+
+    let content = formatArticleMarkdown(article);
+    if (this.settings.localizeImages) {
+      content = await this.localizeImages(
+        content,
+        file.parent?.path || this.settings.syncFolder,
+        article.id
+      );
+    }
+    await this.app.vault.modify(file, content);
   }
 
   private async writeBinaryFile(article: PublicArticle): Promise<string> {
@@ -298,13 +340,14 @@ export default class ObsyncPlugin extends Plugin {
     return path;
   }
 
-  private async localizeImages(markdownContent: string, articleFolder: string): Promise<string> {
+  private async localizeImages(markdownContent: string, articleFolder: string, articleId: string): Promise<string> {
     const imageRegex = /!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g;
     const matches = [...markdownContent.matchAll(imageRegex)];
     
     if (matches.length === 0) return markdownContent;
 
-    const attachmentFolder = normalizePath(`${articleFolder}/attachments`);
+    const articleAttachmentFolder = sanitizeFileName(articleId) || "article";
+    const attachmentFolder = normalizePath(`${articleFolder}/attachments/${articleAttachmentFolder}`);
     await ensureFolder(this.app, attachmentFolder);
 
     let result = markdownContent;
@@ -313,7 +356,13 @@ export default class ObsyncPlugin extends Plugin {
     for (const match of matches) {
       const [fullMatch, altText, imageUrl] = match;
       try {
-        const response = await requestUrl({ url: imageUrl });
+        const response = await requestUrl({
+          url: imageUrl,
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://mp.weixin.qq.com/"
+          }
+        });
         if (response.status >= 200 && response.status < 300) {
           // Determine file extension from URL or content-type
           const contentType = response.headers["content-type"] || "";
@@ -328,12 +377,14 @@ export default class ObsyncPlugin extends Plugin {
           
           // Write the binary content
           const existing = this.app.vault.getAbstractFileByPath(imgPath);
-          if (!existing) {
+          if (existing instanceof TFile) {
+            await this.app.vault.modifyBinary(existing, response.arrayBuffer);
+          } else if (!existing) {
             await this.app.vault.createBinary(imgPath, response.arrayBuffer);
           }
           
           // Replace the URL with relative path
-          const relativePath = `attachments/${imgFileName}`;
+          const relativePath = `attachments/${articleAttachmentFolder}/${imgFileName}`;
           result = result.replace(fullMatch, `![${altText}](${relativePath})`);
           downloadCount++;
         }

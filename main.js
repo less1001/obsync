@@ -63,7 +63,7 @@ var DEFAULT_SETTINGS = {
   userId: "",
   syncFolder: "\u5FAE\u4FE1\u516C\u4F17\u53F7\u6587\u7AE0",
   deviceName: "Obsidian",
-  syncIntervalMinutes: 5,
+  syncIntervalMinutes: 1,
   localizeImages: true
 };
 var ObsyncPlugin = class extends import_obsidian.Plugin {
@@ -74,6 +74,7 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
     __publicField(this, "lastSyncTime", null);
     __publicField(this, "syncInterval");
     __publicField(this, "bindingPollInterval");
+    __publicField(this, "activeSync", null);
   }
   async onload() {
     await this.loadSettings();
@@ -88,6 +89,9 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
       }
     });
     this.scheduleSync();
+    this.app.workspace.onLayoutReady(() => {
+      void this.syncNow(false);
+    });
   }
   onunload() {
     if (this.syncInterval) {
@@ -100,9 +104,13 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
   async loadSettings() {
     const data = await this.loadData();
     this.settings = Object.assign({}, DEFAULT_SETTINGS, data != null ? data : {});
-    const currentApiBaseUrl = this.settings.apiBaseUrl.replace(/\/+$/, "");
-    if (!currentApiBaseUrl || currentApiBaseUrl === LEGACY_API_BASE_URL) {
+    if (!this.settings.apiBaseUrl || this.settings.apiBaseUrl.replace(/\/+$/, "") === LEGACY_API_BASE_URL) {
       this.settings.apiBaseUrl = CLOUDFLARE_API_BASE_URL;
+    }
+    if (!(data == null ? void 0 : data.settingsVersion)) {
+      if (this.settings.syncIntervalMinutes === 5) {
+        this.settings.syncIntervalMinutes = 1;
+      }
     }
     if (this.settings.settingsVersion !== 3) this.settings.settingsVersion = 3;
     await this.saveData(this.settings);
@@ -155,6 +163,18 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
     }, 2500);
   }
   async syncNow(showNotice = false) {
+    if (this.activeSync) {
+      if (showNotice) new import_obsidian.Notice("Obsync \u6B63\u5728\u540C\u6B65\uFF0C\u8BF7\u7A0D\u5019\u3002");
+      return this.activeSync;
+    }
+    this.activeSync = this.runSync(showNotice);
+    try {
+      await this.activeSync;
+    } finally {
+      this.activeSync = null;
+    }
+  }
+  async runSync(showNotice = false) {
     if (!this.settings.token) {
       if (showNotice) new import_obsidian.Notice("Obsync \u5C1A\u672A\u7ED1\u5B9A\u3002");
       return;
@@ -173,12 +193,12 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
         }
       }
       let written = 0;
-      let skipped = 0;
+      let updated = 0;
       let failed = 0;
       const errors = [];
       for (const article of response.articles) {
         try {
-          const isBinary = article.excerpt && (article.excerpt.includes("/") || article.excerpt.startsWith("image/") || article.excerpt.startsWith("application/"));
+          const isBinary = article.contentKind === "file" || !article.contentKind && article.sourceUrl.includes("/s/file-");
           let path = "";
           if (isBinary) {
             const folder = (0, import_obsidian.normalizePath)(this.settings.syncFolder || DEFAULT_SETTINGS.syncFolder);
@@ -190,8 +210,12 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
               path = existingPath;
             }
           }
-          if (path && this.app.vault.getAbstractFileByPath(path)) {
-            skipped += 1;
+          if (!isBinary && path && this.app.vault.getAbstractFileByPath(path) instanceof import_obsidian.TFile) {
+            await this.updateArticle(path, article);
+            updated += 1;
+          } else if (isBinary && path && this.app.vault.getAbstractFileByPath(path)) {
+            await this.writeBinaryFile(article);
+            updated += 1;
           } else {
             if (isBinary) {
               path = await this.writeBinaryFile(article);
@@ -211,14 +235,14 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
           errors.push(err instanceof Error ? err.message : String(err));
         }
       }
-      if (failed > 0 && written === 0 && skipped === 0) {
+      if (failed > 0 && written === 0 && updated === 0) {
         throw new Error(`\u540C\u6B65\u5931\u8D25: ${errors.slice(0, 3).join("; ")}`);
       }
       this.updateStatusBar(failed > 0 ? "error" : "success");
       if (showNotice) {
         const parts = [];
         if (written > 0) parts.push(`\u5DF2\u540C\u6B65 ${written} \u7BC7`);
-        if (skipped > 0) parts.push(`\u5FFD\u7565\u91CD\u590D ${skipped} \u7BC7`);
+        if (updated > 0) parts.push(`\u5DF2\u66F4\u65B0 ${updated} \u7BC7`);
         if (failed > 0) parts.push(`\u5931\u8D25 ${failed} \u7BC7`);
         if (parts.length > 0) {
           new import_obsidian.Notice(`Obsync \u540C\u6B65\u7ED3\u679C: ${parts.join("\uFF0C")}`);
@@ -267,19 +291,33 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
   async writeArticle(article) {
     const folder = (0, import_obsidian.normalizePath)(this.settings.syncFolder || DEFAULT_SETTINGS.syncFolder);
     await ensureFolder(this.app, folder);
-    const date = article.publishedAt || article.savedAt.slice(0, 10);
+    const date = (article.publishedAt || article.savedAt).slice(0, 10);
     const baseName = sanitizeFileName(`${date} - ${article.title || "\u672A\u547D\u540D\u516C\u4F17\u53F7\u6587\u7AE0"}`);
     const path = await nextAvailablePath(this.app, folder, baseName);
     let content = formatArticleMarkdown(article);
     if (this.settings.localizeImages) {
       try {
-        content = await this.localizeImages(content, folder);
+        content = await this.localizeImages(content, folder, article.id);
       } catch (err) {
         console.warn("Obsync: Image localization failed, using original URLs", err);
       }
     }
     await this.app.vault.create(path, content);
     return path;
+  }
+  async updateArticle(path, article) {
+    var _a;
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof import_obsidian.TFile)) return;
+    let content = formatArticleMarkdown(article);
+    if (this.settings.localizeImages) {
+      content = await this.localizeImages(
+        content,
+        ((_a = file.parent) == null ? void 0 : _a.path) || this.settings.syncFolder,
+        article.id
+      );
+    }
+    await this.app.vault.modify(file, content);
   }
   async writeBinaryFile(article) {
     const folder = (0, import_obsidian.normalizePath)(this.settings.syncFolder || DEFAULT_SETTINGS.syncFolder);
@@ -295,18 +333,25 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
     }
     return path;
   }
-  async localizeImages(markdownContent, articleFolder) {
+  async localizeImages(markdownContent, articleFolder, articleId) {
     const imageRegex = /!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g;
     const matches = [...markdownContent.matchAll(imageRegex)];
     if (matches.length === 0) return markdownContent;
-    const attachmentFolder = (0, import_obsidian.normalizePath)(`${articleFolder}/attachments`);
+    const articleAttachmentFolder = sanitizeFileName(articleId) || "article";
+    const attachmentFolder = (0, import_obsidian.normalizePath)(`${articleFolder}/attachments/${articleAttachmentFolder}`);
     await ensureFolder(this.app, attachmentFolder);
     let result = markdownContent;
     let downloadCount = 0;
     for (const match of matches) {
       const [fullMatch, altText, imageUrl] = match;
       try {
-        const response = await (0, import_obsidian.requestUrl)({ url: imageUrl });
+        const response = await (0, import_obsidian.requestUrl)({
+          url: imageUrl,
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://mp.weixin.qq.com/"
+          }
+        });
         if (response.status >= 200 && response.status < 300) {
           const contentType = response.headers["content-type"] || "";
           let ext = ".jpg";
@@ -317,10 +362,12 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
           const imgFileName = `img_${downloadCount + 1}${ext}`;
           const imgPath = (0, import_obsidian.normalizePath)(`${attachmentFolder}/${imgFileName}`);
           const existing = this.app.vault.getAbstractFileByPath(imgPath);
-          if (!existing) {
+          if (existing instanceof import_obsidian.TFile) {
+            await this.app.vault.modifyBinary(existing, response.arrayBuffer);
+          } else if (!existing) {
             await this.app.vault.createBinary(imgPath, response.arrayBuffer);
           }
-          const relativePath = `attachments/${imgFileName}`;
+          const relativePath = `attachments/${articleAttachmentFolder}/${imgFileName}`;
           result = result.replace(fullMatch, `![${altText}](${relativePath})`);
           downloadCount++;
         }

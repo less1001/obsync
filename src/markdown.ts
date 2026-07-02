@@ -1,4 +1,4 @@
-import type { PublicArticle } from "./types";
+import type { PublicArticle } from "@obsync/shared";
 
 export function formatArticleMarkdown(article: PublicArticle): string {
   const frontmatter = [
