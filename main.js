@@ -135,7 +135,7 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
       window.clearInterval(this.bindingPollInterval);
     }
     this.bindingPollInterval = window.setInterval(() => {
-      (async () => {
+      void (async () => {
         var _a;
         try {
           const status = await apiRequest(
@@ -265,7 +265,7 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
     }
     const intervalMs = Math.max(1, this.settings.syncIntervalMinutes) * 60 * 1e3;
     this.syncInterval = window.setInterval(() => {
-      this.syncNow(false).catch((error) => console.error("Obsync sync failed", error));
+      void this.syncNow(false).catch((error) => console.error("Obsync sync failed", error));
     }, intervalMs);
   }
   updateStatusBar(status) {

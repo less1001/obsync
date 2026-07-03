@@ -114,7 +114,7 @@ export default class ObsyncPlugin extends Plugin {
       window.clearInterval(this.bindingPollInterval);
     }
     this.bindingPollInterval = window.setInterval(() => {
-      (async () => {
+      void (async () => {
         try {
           const status = await apiRequest<BindStatusResponse>(
             this.settings.apiBaseUrl,
@@ -261,7 +261,7 @@ export default class ObsyncPlugin extends Plugin {
     }
     const intervalMs = Math.max(1, this.settings.syncIntervalMinutes) * 60 * 1000;
     this.syncInterval = window.setInterval(() => {
-      this.syncNow(false).catch((error) => console.error("Obsync sync failed", error));
+      void this.syncNow(false).catch((error) => console.error("Obsync sync failed", error));
     }, intervalMs);
   }
 
