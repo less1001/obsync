@@ -80,9 +80,7 @@ export default class ObsyncPlugin extends Plugin {
   async loadSettings() {
     const data = (await this.loadData()) as Partial<ObsyncSettings> | null;
     this.settings = Object.assign({}, DEFAULT_SETTINGS, data ?? {});
-    if (!this.settings.apiBaseUrl || this.settings.apiBaseUrl.replace(/\/+$/, "") === LEGACY_API_BASE_URL) {
-      this.settings.apiBaseUrl = CLOUDFLARE_API_BASE_URL;
-    }
+    this.settings.apiBaseUrl = CLOUDFLARE_API_BASE_URL;
     if (!data?.settingsVersion) {
       if (this.settings.syncIntervalMinutes === 5) {
         this.settings.syncIntervalMinutes = 1;
@@ -417,22 +415,9 @@ class ObsyncSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName("Obsync 同步助手").setHeading();
     containerEl.createEl("p", {
       text: this.plugin.settings.token
-        ? "已绑定。可继续生成绑定码，让其他手机上的微信加入当前笔记库。"
-        : "请先生成绑定码，然后在微信小程序中确认绑定。"
+        ? "已成功绑定。如需将其他手机（如第二台手机或家人的微信）也同步到当前笔记库，请点击下方的生成按钮。"
+        : "请先点击下方的生成按钮获取绑定码，并在微信小程序“Obsidian同步助手”中输入以连接当前笔记库。"
     });
-
-    new Setting(containerEl)
-      .setName("服务器地址")
-      .setDesc("默认使用Cloudflare HTTPS地址。")
-      .addText((text) =>
-        text
-          .setPlaceholder(CLOUDFLARE_API_BASE_URL)
-          .setValue(this.plugin.settings.apiBaseUrl)
-          .onChange(async (value) => {
-            this.plugin.settings.apiBaseUrl = value.replace(/\/+$/, "");
-            await this.plugin.saveSettings();
-          })
-      );
 
     new Setting(containerEl)
       .setName("设备名称")
@@ -477,7 +462,7 @@ class ObsyncSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("生成绑定码")
-      .setDesc(this.plugin.settings.token ? "在另一台手机的微信小程序中输入绑定码，即可共同同步到当前笔记库。" : "在微信小程序中输入此绑定码。")
+      .setDesc(this.plugin.settings.token ? "已成功绑定。如需将其他手机（如第二台手机或家人的微信）也同步到当前笔记库，可再次生成绑定码。" : "在微信小程序“Obsidian同步助手”中输入此绑定码，即可将该手机与当前笔记库连接。")
       .addButton((button) =>
         button.setButtonText("生成").setCta().onClick(async () => {
           button.setDisabled(true);

@@ -55,7 +55,6 @@ function sanitizeFileName(value) {
 
 // main.ts
 var CLOUDFLARE_API_BASE_URL = "https://ob.agentok.top";
-var LEGACY_API_BASE_URL = "https://cloud1-d3gvuz4256fba5e84-1443228054.ap-shanghai.app.tcloudbase.com/obsync";
 var DEFAULT_SETTINGS = {
   settingsVersion: 3,
   apiBaseUrl: CLOUDFLARE_API_BASE_URL,
@@ -104,9 +103,7 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
   async loadSettings() {
     const data = await this.loadData();
     this.settings = Object.assign({}, DEFAULT_SETTINGS, data != null ? data : {});
-    if (!this.settings.apiBaseUrl || this.settings.apiBaseUrl.replace(/\/+$/, "") === LEGACY_API_BASE_URL) {
-      this.settings.apiBaseUrl = CLOUDFLARE_API_BASE_URL;
-    }
+    this.settings.apiBaseUrl = CLOUDFLARE_API_BASE_URL;
     if (!(data == null ? void 0 : data.settingsVersion)) {
       if (this.settings.syncIntervalMinutes === 5) {
         this.settings.syncIntervalMinutes = 1;
@@ -393,14 +390,8 @@ var ObsyncSettingTab = class extends import_obsidian.PluginSettingTab {
     containerEl.empty();
     new import_obsidian.Setting(containerEl).setName("Obsync \u540C\u6B65\u52A9\u624B").setHeading();
     containerEl.createEl("p", {
-      text: this.plugin.settings.token ? "\u5DF2\u7ED1\u5B9A\u3002\u53EF\u7EE7\u7EED\u751F\u6210\u7ED1\u5B9A\u7801\uFF0C\u8BA9\u5176\u4ED6\u624B\u673A\u4E0A\u7684\u5FAE\u4FE1\u52A0\u5165\u5F53\u524D\u7B14\u8BB0\u5E93\u3002" : "\u8BF7\u5148\u751F\u6210\u7ED1\u5B9A\u7801\uFF0C\u7136\u540E\u5728\u5FAE\u4FE1\u5C0F\u7A0B\u5E8F\u4E2D\u786E\u8BA4\u7ED1\u5B9A\u3002"
+      text: this.plugin.settings.token ? "\u5DF2\u6210\u529F\u7ED1\u5B9A\u3002\u5982\u9700\u5C06\u5176\u4ED6\u624B\u673A\uFF08\u5982\u7B2C\u4E8C\u53F0\u624B\u673A\u6216\u5BB6\u4EBA\u7684\u5FAE\u4FE1\uFF09\u4E5F\u540C\u6B65\u5230\u5F53\u524D\u7B14\u8BB0\u5E93\uFF0C\u8BF7\u70B9\u51FB\u4E0B\u65B9\u7684\u751F\u6210\u6309\u94AE\u3002" : "\u8BF7\u5148\u70B9\u51FB\u4E0B\u65B9\u7684\u751F\u6210\u6309\u94AE\u83B7\u53D6\u7ED1\u5B9A\u7801\uFF0C\u5E76\u5728\u5FAE\u4FE1\u5C0F\u7A0B\u5E8F\u201CObsidian\u540C\u6B65\u52A9\u624B\u201D\u4E2D\u8F93\u5165\u4EE5\u8FDE\u63A5\u5F53\u524D\u7B14\u8BB0\u5E93\u3002"
     });
-    new import_obsidian.Setting(containerEl).setName("\u670D\u52A1\u5668\u5730\u5740").setDesc("\u9ED8\u8BA4\u4F7F\u7528Cloudflare HTTPS\u5730\u5740\u3002").addText(
-      (text) => text.setPlaceholder(CLOUDFLARE_API_BASE_URL).setValue(this.plugin.settings.apiBaseUrl).onChange(async (value) => {
-        this.plugin.settings.apiBaseUrl = value.replace(/\/+$/, "");
-        await this.plugin.saveSettings();
-      })
-    );
     new import_obsidian.Setting(containerEl).setName("\u8BBE\u5907\u540D\u79F0").setDesc("\u7ED1\u5B9A\u65F6\u663E\u793A\u7684\u7535\u8111\u540D\u79F0\u3002").addText(
       (text) => text.setValue(this.plugin.settings.deviceName).onChange(async (value) => {
         this.plugin.settings.deviceName = value || "Obsidian";
@@ -426,7 +417,7 @@ var ObsyncSettingTab = class extends import_obsidian.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian.Setting(containerEl).setName("\u751F\u6210\u7ED1\u5B9A\u7801").setDesc(this.plugin.settings.token ? "\u5728\u53E6\u4E00\u53F0\u624B\u673A\u7684\u5FAE\u4FE1\u5C0F\u7A0B\u5E8F\u4E2D\u8F93\u5165\u7ED1\u5B9A\u7801\uFF0C\u5373\u53EF\u5171\u540C\u540C\u6B65\u5230\u5F53\u524D\u7B14\u8BB0\u5E93\u3002" : "\u5728\u5FAE\u4FE1\u5C0F\u7A0B\u5E8F\u4E2D\u8F93\u5165\u6B64\u7ED1\u5B9A\u7801\u3002").addButton(
+    new import_obsidian.Setting(containerEl).setName("\u751F\u6210\u7ED1\u5B9A\u7801").setDesc(this.plugin.settings.token ? "\u5DF2\u6210\u529F\u7ED1\u5B9A\u3002\u5982\u9700\u5C06\u5176\u4ED6\u624B\u673A\uFF08\u5982\u7B2C\u4E8C\u53F0\u624B\u673A\u6216\u5BB6\u4EBA\u7684\u5FAE\u4FE1\uFF09\u4E5F\u540C\u6B65\u5230\u5F53\u524D\u7B14\u8BB0\u5E93\uFF0C\u53EF\u518D\u6B21\u751F\u6210\u7ED1\u5B9A\u7801\u3002" : "\u5728\u5FAE\u4FE1\u5C0F\u7A0B\u5E8F\u201CObsidian\u540C\u6B65\u52A9\u624B\u201D\u4E2D\u8F93\u5165\u6B64\u7ED1\u5B9A\u7801\uFF0C\u5373\u53EF\u5C06\u8BE5\u624B\u673A\u4E0E\u5F53\u524D\u7B14\u8BB0\u5E93\u8FDE\u63A5\u3002").addButton(
       (button) => button.setButtonText("\u751F\u6210").setCta().onClick(async () => {
         button.setDisabled(true);
         button.setButtonText("\u751F\u6210\u4E2D...");
