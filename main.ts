@@ -26,6 +26,8 @@ interface ObsyncSettings {
   deviceName: string;
   syncIntervalMinutes: number;
   localizeImages: boolean;
+  subfolderByAccount: boolean;
+  customFrontmatter: string;
 }
 
 const CLOUDFLARE_API_BASE_URL = "https://ob.agentok.top";
@@ -39,7 +41,9 @@ const DEFAULT_SETTINGS: ObsyncSettings = {
   syncFolder: "微信公众号文章",
   deviceName: "Obsidian",
   syncIntervalMinutes: 1,
-  localizeImages: true
+  localizeImages: true,
+  subfolderByAccount: false,
+  customFrontmatter: ""
 };
 
 export default class ObsyncPlugin extends Plugin {
@@ -285,14 +289,18 @@ export default class ObsyncPlugin extends Plugin {
   }
 
   private async writeArticle(article: PublicArticle): Promise<string> {
-    const folder = normalizePath(this.settings.syncFolder || DEFAULT_SETTINGS.syncFolder);
+    let folder = normalizePath(this.settings.syncFolder || DEFAULT_SETTINGS.syncFolder);
+    const accountName = article.account || article.author;
+    if (this.settings.subfolderByAccount && accountName) {
+      folder = normalizePath(`${folder}/${sanitizeFileName(accountName)}`);
+    }
     await ensureFolder(this.app, folder);
 
     const date = (article.publishedAt || article.savedAt).slice(0, 10);
     const baseName = sanitizeFileName(`${date} - ${article.title || "未命名公众号文章"}`);
     const path = await nextAvailablePath(this.app, folder, baseName);
 
-    let content = formatArticleMarkdown(article);
+    let content = formatArticleMarkdown(article, this.settings.customFrontmatter);
     // Only localize images if the setting is enabled
     if (this.settings.localizeImages) {
       try {
@@ -310,7 +318,7 @@ export default class ObsyncPlugin extends Plugin {
     const file = this.app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) return;
 
-    let content = formatArticleMarkdown(article);
+    let content = formatArticleMarkdown(article, this.settings.customFrontmatter);
     if (this.settings.localizeImages) {
       content = await this.localizeImages(
         content,
@@ -322,7 +330,11 @@ export default class ObsyncPlugin extends Plugin {
   }
 
   private async writeBinaryFile(article: PublicArticle): Promise<string> {
-    const folder = normalizePath(this.settings.syncFolder || DEFAULT_SETTINGS.syncFolder);
+    let folder = normalizePath(this.settings.syncFolder || DEFAULT_SETTINGS.syncFolder);
+    const accountName = article.account || article.author;
+    if (this.settings.subfolderByAccount && accountName) {
+      folder = normalizePath(`${folder}/${sanitizeFileName(accountName)}`);
+    }
     await ensureFolder(this.app, folder);
 
     const fileName = sanitizeFileName(article.title || "未命名文件");
@@ -440,6 +452,16 @@ class ObsyncSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("按公众号创建子文件夹")
+      .setDesc("开启后，文章将按公众号名称保存在对应的子文件夹内，更方便分类查找。")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.subfolderByAccount).onChange(async (value) => {
+          this.plugin.settings.subfolderByAccount = value;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
       .setName("自动同步间隔")
       .setDesc("每隔多少分钟检查一次新文章。")
       .addText((text) =>
@@ -452,13 +474,31 @@ class ObsyncSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("下载文章图片到本地")
-      .setDesc("将文章中的图片下载到笔记库，避免微信防盗链导致图片无法显示。")
+      .setDesc("避免微信防盗链导致图片无法显示，实现文章与图片的永久防删、永久离线保存。")
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.localizeImages).onChange(async (value) => {
           this.plugin.settings.localizeImages = value;
           await this.plugin.saveSettings();
         })
       );
+
+    new Setting(containerEl)
+      .setName("自定义 Frontmatter 模板")
+      .setDesc("自定义笔记开头的属性元数据。留空使用默认格式。中英文之间不加空格。支持变量：{{author}}（公众号）、{{date}}（同步日期）、{{url}}（原文链接）、{{title}}（文章标题）、{{account}}（微信号）、{{publish_time}}（发布时间）、{{sync_time}}（保存时间）、{{sync_id}}（文章ID）、{{time}}（当前时间）。")
+      .addTextArea((text) => {
+        // Adjust size of the textarea
+        text.inputEl.rows = 6;
+        text.inputEl.cols = 40;
+        text
+          .setPlaceholder(
+            `source_url: "{{url}}"\ntitle: "{{title}}"\nauthor: "{{author}}"\npublish_time: "{{publish_time}}"\nsync_time: "{{sync_time}}"`
+          )
+          .setValue(this.plugin.settings.customFrontmatter)
+          .onChange(async (value) => {
+            this.plugin.settings.customFrontmatter = value;
+            await this.plugin.saveSettings();
+          });
+      });
 
     new Setting(containerEl)
       .setName("生成绑定码")
@@ -514,6 +554,18 @@ class ObsyncSettingTab extends PluginSettingTab {
           new Notice("Obsync 已解除本地绑定。");
           this.display();
         })
+      );
+
+    new Setting(containerEl)
+      .setName("联系开发者")
+      .setDesc("在使用过程中有任何问题、建议，或想加入用户群，欢迎添加微信反馈。")
+      .addButton((button) =>
+        button
+          .setButtonText("复制微信号")
+          .onClick(() => {
+            navigator.clipboard.writeText("vkdefi");
+            new Notice("已复制");
+          })
       );
   }
 }
