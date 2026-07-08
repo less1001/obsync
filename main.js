@@ -28,21 +28,39 @@ module.exports = __toCommonJS(main_exports);
 var import_obsidian = require("obsidian");
 
 // src/markdown.ts
-function formatArticleMarkdown(article) {
-  const frontmatter = [
-    "---",
-    `source_url: ${JSON.stringify(article.sourceUrl)}`,
-    `title: ${JSON.stringify(article.title)}`,
-    article.account ? `account: ${JSON.stringify(article.account)}` : void 0,
-    article.author ? `author: ${JSON.stringify(article.author)}` : void 0,
-    article.publishedAt ? `published_at: ${JSON.stringify(article.publishedAt)}` : void 0,
-    `saved_at: ${JSON.stringify(article.savedAt)}`,
-    `sync_id: ${JSON.stringify(article.id)}`,
-    `parse_status: ${JSON.stringify(article.parseStatus)}`,
-    article.parseError ? `parse_error: ${JSON.stringify(article.parseError)}` : void 0,
-    "---"
-  ].filter(Boolean);
-  return `${frontmatter.join("\n")}
+function formatArticleMarkdown(article, customTemplate) {
+  let frontmatterStr = "";
+  if (customTemplate && customTemplate.trim()) {
+    const now = /* @__PURE__ */ new Date();
+    const dateStr = now.toISOString().slice(0, 10);
+    const timeStr = now.toTimeString().slice(0, 8);
+    const authorVal = article.author || article.account || "";
+    let parsed = customTemplate.replace(/\{\{title\}\}/g, article.title || "").replace(/\{\{author\}\}/g, authorVal).replace(/\{\{account\}\}/g, article.account || "").replace(/\{\{url\}\}/g, article.sourceUrl || "").replace(/\{\{publish_time\}\}/g, article.publishedAt || "").replace(/\{\{sync_time\}\}/g, article.savedAt || "").replace(/\{\{sync_id\}\}/g, article.id || "").replace(/\{\{date\}\}/g, dateStr).replace(/\{\{time\}\}/g, timeStr);
+    parsed = parsed.trim();
+    if (!parsed.startsWith("---")) {
+      parsed = "---\n" + parsed;
+    }
+    if (!parsed.endsWith("---")) {
+      parsed = parsed + "\n---";
+    }
+    frontmatterStr = parsed;
+  } else {
+    const frontmatter = [
+      "---",
+      `source_url: ${JSON.stringify(article.sourceUrl)}`,
+      `title: ${JSON.stringify(article.title)}`,
+      article.account ? `account: ${JSON.stringify(article.account)}` : void 0,
+      article.author ? `author: ${JSON.stringify(article.author)}` : void 0,
+      article.publishedAt ? `published_at: ${JSON.stringify(article.publishedAt)}` : void 0,
+      `saved_at: ${JSON.stringify(article.savedAt)}`,
+      `sync_id: ${JSON.stringify(article.id)}`,
+      `parse_status: ${JSON.stringify(article.parseStatus)}`,
+      article.parseError ? `parse_error: ${JSON.stringify(article.parseError)}` : void 0,
+      "---"
+    ].filter(Boolean);
+    frontmatterStr = frontmatter.join("\n");
+  }
+  return `${frontmatterStr}
 
 # ${article.title}
 
@@ -63,7 +81,9 @@ var DEFAULT_SETTINGS = {
   syncFolder: "\u5FAE\u4FE1\u516C\u4F17\u53F7\u6587\u7AE0",
   deviceName: "Obsidian",
   syncIntervalMinutes: 1,
-  localizeImages: true
+  localizeImages: true,
+  subfolderByAccount: false,
+  customFrontmatter: ""
 };
 var ObsyncPlugin = class extends import_obsidian.Plugin {
   constructor() {
@@ -286,12 +306,15 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
     }
   }
   async writeArticle(article) {
-    const folder = (0, import_obsidian.normalizePath)(this.settings.syncFolder || DEFAULT_SETTINGS.syncFolder);
+    let folder = (0, import_obsidian.normalizePath)(this.settings.syncFolder || DEFAULT_SETTINGS.syncFolder);
+    if (this.settings.subfolderByAccount && article.author) {
+      folder = (0, import_obsidian.normalizePath)(`${folder}/${sanitizeFileName(article.author)}`);
+    }
     await ensureFolder(this.app, folder);
     const date = (article.publishedAt || article.savedAt).slice(0, 10);
     const baseName = sanitizeFileName(`${date} - ${article.title || "\u672A\u547D\u540D\u516C\u4F17\u53F7\u6587\u7AE0"}`);
     const path = await nextAvailablePath(this.app, folder, baseName);
-    let content = formatArticleMarkdown(article);
+    let content = formatArticleMarkdown(article, this.settings.customFrontmatter);
     if (this.settings.localizeImages) {
       try {
         content = await this.localizeImages(content, folder, article.id);
@@ -306,7 +329,7 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
     var _a;
     const file = this.app.vault.getAbstractFileByPath(path);
     if (!(file instanceof import_obsidian.TFile)) return;
-    let content = formatArticleMarkdown(article);
+    let content = formatArticleMarkdown(article, this.settings.customFrontmatter);
     if (this.settings.localizeImages) {
       content = await this.localizeImages(
         content,
@@ -317,7 +340,10 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
     await this.app.vault.modify(file, content);
   }
   async writeBinaryFile(article) {
-    const folder = (0, import_obsidian.normalizePath)(this.settings.syncFolder || DEFAULT_SETTINGS.syncFolder);
+    let folder = (0, import_obsidian.normalizePath)(this.settings.syncFolder || DEFAULT_SETTINGS.syncFolder);
+    if (this.settings.subfolderByAccount && article.author) {
+      folder = (0, import_obsidian.normalizePath)(`${folder}/${sanitizeFileName(article.author)}`);
+    }
     await ensureFolder(this.app, folder);
     const fileName = sanitizeFileName(article.title || "\u672A\u547D\u540D\u6587\u4EF6");
     const path = (0, import_obsidian.normalizePath)(`${folder}/${fileName}`);
@@ -404,6 +430,12 @@ var ObsyncSettingTab = class extends import_obsidian.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
+    new import_obsidian.Setting(containerEl).setName("\u6309\u516C\u4F17\u53F7\u521B\u5EFA\u5B50\u6587\u4EF6\u5939").setDesc("\u5F00\u542F\u540E\uFF0C\u6587\u7AE0\u5C06\u6309\u516C\u4F17\u53F7\u540D\u79F0\u4FDD\u5B58\u5728\u5BF9\u5E94\u7684\u5B50\u6587\u4EF6\u5939\u5185\uFF0C\u66F4\u65B9\u4FBF\u5206\u7C7B\u67E5\u627E\u3002").addToggle(
+      (toggle) => toggle.setValue(this.plugin.settings.subfolderByAccount).onChange(async (value) => {
+        this.plugin.settings.subfolderByAccount = value;
+        await this.plugin.saveSettings();
+      })
+    );
     new import_obsidian.Setting(containerEl).setName("\u81EA\u52A8\u540C\u6B65\u95F4\u9694").setDesc("\u6BCF\u9694\u591A\u5C11\u5206\u949F\u68C0\u67E5\u4E00\u6B21\u65B0\u6587\u7AE0\u3002").addText(
       (text) => text.setValue(String(this.plugin.settings.syncIntervalMinutes)).onChange(async (value) => {
         const parsed = Number(value);
@@ -411,12 +443,26 @@ var ObsyncSettingTab = class extends import_obsidian.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian.Setting(containerEl).setName("\u4E0B\u8F7D\u6587\u7AE0\u56FE\u7247\u5230\u672C\u5730").setDesc("\u5C06\u6587\u7AE0\u4E2D\u7684\u56FE\u7247\u4E0B\u8F7D\u5230\u7B14\u8BB0\u5E93\uFF0C\u907F\u514D\u5FAE\u4FE1\u9632\u76D7\u94FE\u5BFC\u81F4\u56FE\u7247\u65E0\u6CD5\u663E\u793A\u3002").addToggle(
+    new import_obsidian.Setting(containerEl).setName("\u4E0B\u8F7D\u6587\u7AE0\u56FE\u7247\u5230\u672C\u5730").setDesc("\u907F\u514D\u5FAE\u4FE1\u9632\u76D7\u94FE\u5BFC\u81F4\u56FE\u7247\u65E0\u6CD5\u663E\u793A\uFF0C\u5B9E\u73B0\u6587\u7AE0\u4E0E\u56FE\u7247\u7684\u6C38\u4E45\u9632\u5220\u3001\u6C38\u4E45\u79BB\u7EBF\u4FDD\u5B58\u3002").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.localizeImages).onChange(async (value) => {
         this.plugin.settings.localizeImages = value;
         await this.plugin.saveSettings();
       })
     );
+    new import_obsidian.Setting(containerEl).setName("\u81EA\u5B9A\u4E49 Frontmatter \u6A21\u677F").setDesc("\u81EA\u5B9A\u4E49\u7B14\u8BB0\u5F00\u5934\u7684\u5C5E\u6027\u5143\u6570\u636E\u3002\u7559\u7A7A\u4F7F\u7528\u9ED8\u8BA4\u683C\u5F0F\u3002\u4E2D\u82F1\u6587\u4E4B\u95F4\u4E0D\u52A0\u7A7A\u683C\u3002\u652F\u6301\u53D8\u91CF\uFF1A{{author}}\uFF08\u516C\u4F17\u53F7\uFF09\u3001{{date}}\uFF08\u540C\u6B65\u65E5\u671F\uFF09\u3001{{url}}\uFF08\u539F\u6587\u94FE\u63A5\uFF09\u3001{{title}}\uFF08\u6587\u7AE0\u6807\u9898\uFF09\u3001{{account}}\uFF08\u5FAE\u4FE1\u53F7\uFF09\u3001{{publish_time}}\uFF08\u53D1\u5E03\u65F6\u95F4\uFF09\u3001{{sync_time}}\uFF08\u4FDD\u5B58\u65F6\u95F4\uFF09\u3001{{sync_id}}\uFF08\u6587\u7AE0ID\uFF09\u3001{{time}}\uFF08\u5F53\u524D\u65F6\u95F4\uFF09\u3002").addTextArea((text) => {
+      text.inputEl.rows = 6;
+      text.inputEl.cols = 40;
+      text.setPlaceholder(
+        `source_url: "{{url}}"
+title: "{{title}}"
+author: "{{author}}"
+publish_time: "{{publish_time}}"
+sync_time: "{{sync_time}}"`
+      ).setValue(this.plugin.settings.customFrontmatter).onChange(async (value) => {
+        this.plugin.settings.customFrontmatter = value;
+        await this.plugin.saveSettings();
+      });
+    });
     new import_obsidian.Setting(containerEl).setName("\u751F\u6210\u7ED1\u5B9A\u7801").setDesc(this.plugin.settings.token ? "\u5DF2\u6210\u529F\u7ED1\u5B9A\u3002\u5982\u9700\u5C06\u5176\u4ED6\u624B\u673A\uFF08\u5982\u7B2C\u4E8C\u53F0\u624B\u673A\u6216\u5BB6\u4EBA\u7684\u5FAE\u4FE1\uFF09\u4E5F\u540C\u6B65\u5230\u5F53\u524D\u7B14\u8BB0\u5E93\uFF0C\u53EF\u518D\u6B21\u751F\u6210\u7ED1\u5B9A\u7801\u3002" : "\u5728\u5FAE\u4FE1\u5C0F\u7A0B\u5E8F\u201CObsidian\u540C\u6B65\u52A9\u624B\u201D\u4E2D\u8F93\u5165\u6B64\u7ED1\u5B9A\u7801\uFF0C\u5373\u53EF\u5C06\u8BE5\u624B\u673A\u4E0E\u5F53\u524D\u7B14\u8BB0\u5E93\u8FDE\u63A5\u3002").addButton(
       (button) => button.setButtonText("\u751F\u6210").setCta().onClick(async () => {
         button.setDisabled(true);
@@ -458,6 +504,12 @@ var ObsyncSettingTab = class extends import_obsidian.PluginSettingTab {
         await this.plugin.saveSettings();
         new import_obsidian.Notice("Obsync \u5DF2\u89E3\u9664\u672C\u5730\u7ED1\u5B9A\u3002");
         this.display();
+      })
+    );
+    new import_obsidian.Setting(containerEl).setName("\u8054\u7CFB\u5F00\u53D1\u8005").setDesc("\u5728\u4F7F\u7528\u8FC7\u7A0B\u4E2D\u6709\u4EFB\u4F55\u95EE\u9898\u3001\u5EFA\u8BAE\uFF0C\u6216\u60F3\u52A0\u5165\u7528\u6237\u7FA4\uFF0C\u6B22\u8FCE\u6DFB\u52A0\u5FAE\u4FE1\u53CD\u9988\u3002").addButton(
+      (button) => button.setButtonText("\u590D\u5236\u5FAE\u4FE1\u53F7").onClick(() => {
+        navigator.clipboard.writeText("vkdefi");
+        new import_obsidian.Notice("\u5DF2\u590D\u5236");
       })
     );
   }
