@@ -28,15 +28,44 @@ module.exports = __toCommonJS(main_exports);
 var import_obsidian = require("obsidian");
 
 // src/markdown.ts
-function formatArticleMarkdown(article, customTemplate) {
+function parseTemplate(article, customTemplate) {
+  const now = /* @__PURE__ */ new Date();
+  const dateStr = now.toISOString().slice(0, 10);
+  const timeStr = now.toTimeString().slice(0, 8);
+  const publishDateStr = (article.publishedAt || article.savedAt || "").slice(0, 10);
+  const syncDateStr = (article.savedAt || "").slice(0, 10);
+  const values = {
+    title: article.title || "",
+    author: article.author || "",
+    account: article.account || "",
+    url: article.sourceUrl || "",
+    publish_date: publishDateStr,
+    publish_time: article.publishedAt || article.savedAt || "",
+    sync_date: syncDateStr,
+    sync_time: article.savedAt || "",
+    sync_id: article.id || "",
+    date: dateStr,
+    time: timeStr
+  };
+  function replaceVars(str) {
+    return str.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+      return values[key] !== void 0 ? values[key] : match;
+    });
+  }
+  let fileNameTemplate = "";
   let frontmatterStr = "";
   if (customTemplate && customTemplate.trim()) {
-    const now = /* @__PURE__ */ new Date();
-    const dateStr = now.toISOString().slice(0, 10);
-    const timeStr = now.toTimeString().slice(0, 8);
-    const authorVal = article.author || article.account || "";
-    let parsed = customTemplate.replace(/\{\{title\}\}/g, article.title || "").replace(/\{\{author\}\}/g, authorVal).replace(/\{\{account\}\}/g, article.account || "").replace(/\{\{url\}\}/g, article.sourceUrl || "").replace(/\{\{publish_time\}\}/g, article.publishedAt || "").replace(/\{\{sync_time\}\}/g, article.savedAt || "").replace(/\{\{sync_id\}\}/g, article.id || "").replace(/\{\{date\}\}/g, dateStr).replace(/\{\{time\}\}/g, timeStr);
-    parsed = parsed.trim();
+    let lines = customTemplate.split("\n");
+    const fileNameIndex = lines.findIndex((line) => line.trim().startsWith("file_name:"));
+    if (fileNameIndex !== -1) {
+      const line = lines[fileNameIndex];
+      const match = line.match(/file_name:\s*(['"]?)(.*?)\1\s*$/);
+      if (match) {
+        fileNameTemplate = match[2];
+      }
+      lines.splice(fileNameIndex, 1);
+    }
+    let parsed = replaceVars(lines.join("\n")).trim();
     if (!parsed.startsWith("---")) {
       parsed = "---\n" + parsed;
     }
@@ -60,12 +89,25 @@ function formatArticleMarkdown(article, customTemplate) {
     ].filter(Boolean);
     frontmatterStr = frontmatter.join("\n");
   }
-  return `${frontmatterStr}
+  const content = `${frontmatterStr}
 
 # ${article.title}
 
 ${article.markdown.trim()}
 `;
+  const resolvedFileName = fileNameTemplate ? replaceVars(fileNameTemplate) : "";
+  return { content, resolvedFileName };
+}
+function formatArticleMarkdown(article, customTemplate) {
+  return parseTemplate(article, customTemplate).content;
+}
+function resolveArticleFileName(article, customTemplate) {
+  const { resolvedFileName } = parseTemplate(article, customTemplate);
+  if (resolvedFileName) {
+    return sanitizeFileName(resolvedFileName);
+  }
+  const date = (article.publishedAt || article.savedAt || "").slice(0, 10);
+  return sanitizeFileName(`${date} - ${article.title || "\u672A\u547D\u540D\u516C\u4F17\u53F7\u6587\u7AE0"}`);
 }
 function sanitizeFileName(value) {
   return value.replace(/[\\/:*?"<>|#^[\]]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
@@ -298,8 +340,7 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
       folder = (0, import_obsidian.normalizePath)(`${folder}/${sanitizeFileName(accountName)}`);
     }
     await ensureFolder(this.app, folder);
-    const date = (article.publishedAt || article.savedAt).slice(0, 10);
-    const baseName = sanitizeFileName(`${date} - ${article.title || "\u672A\u547D\u540D\u516C\u4F17\u53F7\u6587\u7AE0"}`);
+    const baseName = resolveArticleFileName(article, this.settings.customFrontmatter);
     const path = await nextAvailablePath(this.app, folder, baseName);
     let content = formatArticleMarkdown(article, this.settings.customFrontmatter);
     if (this.settings.localizeImages) {
@@ -430,11 +471,11 @@ var ObsyncSettingTab = class extends import_obsidian.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian.Setting(containerEl).setName("\u81EA\u5B9A\u4E49 Frontmatter \u6A21\u677F (\u9009\u586B)").setDesc("\u81EA\u5B9A\u4E49\u7B14\u8BB0\u5F00\u5934\u7684\u6587\u6863\u5C5E\u6027\u3002\u7559\u7A7A\u4EE3\u8868\u4F7F\u7528\u9ED8\u8BA4\u683C\u5F0F\u3002").addTextArea((text) => {
+    new import_obsidian.Setting(containerEl).setName("\u81EA\u5B9A\u4E49 Frontmatter \u6A21\u677F (\u9009\u586B)").setDesc('\u81EA\u5B9A\u4E49\u7B14\u8BB0\u5F00\u5934\u7684\u6587\u6863\u5C5E\u6027\u3002\u53EF\u5728\u6A21\u677F\u4E2D\u52A0 file_name \u81EA\u5B9A\u4E49\u6587\u4EF6\u540D\uFF08\u5982 file_name: "{{publish_date}} - {{title}}"\uFF09\u3002\u7559\u7A7A\u4EE3\u8868\u4F7F\u7528\u9ED8\u8BA4\u683C\u5F0F\u3002').addTextArea((text) => {
       text.inputEl.rows = 3;
       text.inputEl.cols = 40;
       text.setPlaceholder(
-        `\u652F\u6301\u53D8\u91CF\uFF1A{{title}}\u3001{{author}}\u3001{{url}}\u3001{{date}}\u3001{{time}}\u3001{{account}}\u3001{{publish_time}}\u3001{{sync_time}}\u3001{{sync_id}}`
+        `\u652F\u6301\u53D8\u91CF\uFF1A{{title}}\u3001{{author}}\u3001{{account}}\u3001{{url}}\u3001{{publish_date}}\u3001{{publish_time}}\u3001{{sync_date}}\u3001{{sync_time}}\u3001{{date}}\u3001{{time}}\u3001{{sync_id}}`
       ).setValue(this.plugin.settings.customFrontmatter).onChange(async (value) => {
         this.plugin.settings.customFrontmatter = value;
         await this.plugin.saveSettings();

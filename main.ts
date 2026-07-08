@@ -15,7 +15,7 @@ import type {
   PublicArticle,
   SyncArticlesResponse
 } from "@obsync/shared";
-import { formatArticleMarkdown, sanitizeFileName } from "./src/markdown";
+import { formatArticleMarkdown, resolveArticleFileName, sanitizeFileName } from "./src/markdown";
 
 interface ObsyncSettings {
   settingsVersion?: number;
@@ -283,8 +283,7 @@ export default class ObsyncPlugin extends Plugin {
     }
     await ensureFolder(this.app, folder);
 
-    const date = (article.publishedAt || article.savedAt).slice(0, 10);
-    const baseName = sanitizeFileName(`${date} - ${article.title || "未命名公众号文章"}`);
+    const baseName = resolveArticleFileName(article, this.settings.customFrontmatter);
     const path = await nextAvailablePath(this.app, folder, baseName);
 
     let content = formatArticleMarkdown(article, this.settings.customFrontmatter);
@@ -460,13 +459,13 @@ class ObsyncSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("自定义 Frontmatter 模板 (选填)")
-      .setDesc("自定义笔记开头的文档属性。留空代表使用默认格式。")
+      .setDesc("自定义笔记开头的文档属性。可在模板中加 file_name 自定义文件名（如 file_name: \"{{publish_date}} - {{title}}\"）。留空代表使用默认格式。")
       .addTextArea((text) => {
         text.inputEl.rows = 3;
         text.inputEl.cols = 40;
         text
           .setPlaceholder(
-            `支持变量：{{title}}、{{author}}、{{url}}、{{date}}、{{time}}、{{account}}、{{publish_time}}、{{sync_time}}、{{sync_id}}`
+            `支持变量：{{title}}、{{author}}、{{account}}、{{url}}、{{publish_date}}、{{publish_time}}、{{sync_date}}、{{sync_time}}、{{date}}、{{time}}、{{sync_id}}`
           )
           .setValue(this.plugin.settings.customFrontmatter)
           .onChange(async (value) => {

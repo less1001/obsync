@@ -1,26 +1,50 @@
 import type { PublicArticle } from "@obsync/shared";
 
-export function formatArticleMarkdown(article: PublicArticle, customTemplate?: string): string {
+export function parseTemplate(article: PublicArticle, customTemplate?: string) {
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10);
+  const timeStr = now.toTimeString().slice(0, 8);
+  const publishDateStr = (article.publishedAt || article.savedAt || "").slice(0, 10);
+  const syncDateStr = (article.savedAt || "").slice(0, 10);
+
+  const values: Record<string, string> = {
+    title: article.title || "",
+    author: article.author || "",
+    account: article.account || "",
+    url: article.sourceUrl || "",
+    publish_date: publishDateStr,
+    publish_time: article.publishedAt || article.savedAt || "",
+    sync_date: syncDateStr,
+    sync_time: article.savedAt || "",
+    sync_id: article.id || "",
+    date: dateStr,
+    time: timeStr
+  };
+
+  function replaceVars(str: string): string {
+    return str.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+      return values[key] !== undefined ? values[key] : match;
+    });
+  }
+
+  let fileNameTemplate = "";
   let frontmatterStr = "";
 
   if (customTemplate && customTemplate.trim()) {
-    const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10);
-    const timeStr = now.toTimeString().slice(0, 8);
-    const authorVal = article.author || article.account || "";
+    let lines = customTemplate.split("\n");
+    // Find if there is a file_name key
+    const fileNameIndex = lines.findIndex(line => line.trim().startsWith("file_name:"));
+    if (fileNameIndex !== -1) {
+      const line = lines[fileNameIndex];
+      const match = line.match(/file_name:\s*(['"]?)(.*?)\1\s*$/);
+      if (match) {
+        fileNameTemplate = match[2];
+      }
+      // Remove the file_name line from the template
+      lines.splice(fileNameIndex, 1);
+    }
 
-    let parsed = customTemplate
-      .replace(/\{\{title\}\}/g, article.title || "")
-      .replace(/\{\{author\}\}/g, authorVal)
-      .replace(/\{\{account\}\}/g, article.account || "")
-      .replace(/\{\{url\}\}/g, article.sourceUrl || "")
-      .replace(/\{\{publish_time\}\}/g, article.publishedAt || "")
-      .replace(/\{\{sync_time\}\}/g, article.savedAt || "")
-      .replace(/\{\{sync_id\}\}/g, article.id || "")
-      .replace(/\{\{date\}\}/g, dateStr)
-      .replace(/\{\{time\}\}/g, timeStr);
-
-    parsed = parsed.trim();
+    let parsed = replaceVars(lines.join("\n")).trim();
     if (!parsed.startsWith("---")) {
       parsed = "---\n" + parsed;
     }
@@ -45,7 +69,23 @@ export function formatArticleMarkdown(article: PublicArticle, customTemplate?: s
     frontmatterStr = frontmatter.join("\n");
   }
 
-  return `${frontmatterStr}\n\n# ${article.title}\n\n${article.markdown.trim()}\n`;
+  const content = `${frontmatterStr}\n\n# ${article.title}\n\n${article.markdown.trim()}\n`;
+  const resolvedFileName = fileNameTemplate ? replaceVars(fileNameTemplate) : "";
+
+  return { content, resolvedFileName };
+}
+
+export function formatArticleMarkdown(article: PublicArticle, customTemplate?: string): string {
+  return parseTemplate(article, customTemplate).content;
+}
+
+export function resolveArticleFileName(article: PublicArticle, customTemplate?: string): string {
+  const { resolvedFileName } = parseTemplate(article, customTemplate);
+  if (resolvedFileName) {
+    return sanitizeFileName(resolvedFileName);
+  }
+  const date = (article.publishedAt || article.savedAt || "").slice(0, 10);
+  return sanitizeFileName(`${date} - ${article.title || "未命名公众号文章"}`);
 }
 
 export function sanitizeFileName(value: string): string {
