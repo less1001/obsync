@@ -66,16 +66,12 @@ export default class ObsyncPlugin extends Plugin {
         await this.syncNow(true);
       }
     });
-    this.scheduleSync();
     this.app.workspace.onLayoutReady(() => {
       void this.syncNow(false);
     });
   }
 
   onunload() {
-    if (this.syncInterval) {
-      window.clearInterval(this.syncInterval);
-    }
     if (this.bindingPollInterval) {
       window.clearInterval(this.bindingPollInterval);
     }
@@ -96,7 +92,6 @@ export default class ObsyncPlugin extends Plugin {
 
   async saveSettings() {
     await this.saveData(this.settings);
-    this.scheduleSync();
   }
 
   async startBinding(): Promise<BindStartResponse> {
@@ -257,15 +252,7 @@ export default class ObsyncPlugin extends Plugin {
     }
   }
 
-  private scheduleSync() {
-    if (this.syncInterval) {
-      window.clearInterval(this.syncInterval);
-    }
-    const intervalMs = Math.max(1, this.settings.syncIntervalMinutes) * 60 * 1000;
-    this.syncInterval = window.setInterval(() => {
-      void this.syncNow(false).catch((error) => console.error("Obsync sync failed", error));
-    }, intervalMs);
-  }
+
 
   private updateStatusBar(status: "syncing" | "success" | "error" | "idle") {
     if (!this.statusBarEl) return;
@@ -462,17 +449,6 @@ class ObsyncSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("自动同步间隔")
-      .setDesc("每隔多少分钟检查一次新文章。")
-      .addText((text) =>
-        text.setValue(String(this.plugin.settings.syncIntervalMinutes)).onChange(async (value) => {
-          const parsed = Number(value);
-          this.plugin.settings.syncIntervalMinutes = Number.isFinite(parsed) && parsed > 0 ? parsed : 5;
-          await this.plugin.saveSettings();
-        })
-      );
-
-    new Setting(containerEl)
       .setName("下载文章图片到本地")
       .setDesc("避免微信防盗链导致图片无法显示，实现文章与图片的永久防删、永久离线保存。")
       .addToggle((toggle) =>
@@ -483,15 +459,14 @@ class ObsyncSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("自定义 Frontmatter 模板")
-      .setDesc("自定义笔记开头的属性元数据。留空使用默认格式。中英文之间不加空格。支持变量：{{author}}（公众号）、{{date}}（同步日期）、{{url}}（原文链接）、{{title}}（文章标题）、{{account}}（微信号）、{{publish_time}}（发布时间）、{{sync_time}}（保存时间）、{{sync_id}}（文章ID）、{{time}}（当前时间）。")
+      .setName("自定义 Frontmatter 模板 (选填)")
+      .setDesc("自定义笔记开头的文档属性。留空代表使用默认格式。")
       .addTextArea((text) => {
-        // Adjust size of the textarea
-        text.inputEl.rows = 6;
+        text.inputEl.rows = 3;
         text.inputEl.cols = 40;
         text
           .setPlaceholder(
-            `source_url: "{{url}}"\ntitle: "{{title}}"\nauthor: "{{author}}"\npublish_time: "{{publish_time}}"\nsync_time: "{{sync_time}}"`
+            `支持变量：{{title}}、{{author}}、{{url}}、{{date}}、{{time}}、{{account}}、{{publish_time}}、{{sync_time}}、{{sync_id}}`
           )
           .setValue(this.plugin.settings.customFrontmatter)
           .onChange(async (value) => {

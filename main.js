@@ -107,15 +107,11 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
         await this.syncNow(true);
       }
     });
-    this.scheduleSync();
     this.app.workspace.onLayoutReady(() => {
       void this.syncNow(false);
     });
   }
   onunload() {
-    if (this.syncInterval) {
-      window.clearInterval(this.syncInterval);
-    }
     if (this.bindingPollInterval) {
       window.clearInterval(this.bindingPollInterval);
     }
@@ -134,7 +130,6 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
   }
   async saveSettings() {
     await this.saveData(this.settings);
-    this.scheduleSync();
   }
   async startBinding() {
     const response = await apiRequest(this.settings.apiBaseUrl, "/v1/bind/start", {
@@ -275,15 +270,6 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
         new import_obsidian.Notice(`Obsync \u540C\u6B65\u5931\u8D25\uFF1A${message}`);
       }
     }
-  }
-  scheduleSync() {
-    if (this.syncInterval) {
-      window.clearInterval(this.syncInterval);
-    }
-    const intervalMs = Math.max(1, this.settings.syncIntervalMinutes) * 60 * 1e3;
-    this.syncInterval = window.setInterval(() => {
-      void this.syncNow(false).catch((error) => console.error("Obsync sync failed", error));
-    }, intervalMs);
   }
   updateStatusBar(status) {
     if (!this.statusBarEl) return;
@@ -438,28 +424,17 @@ var ObsyncSettingTab = class extends import_obsidian.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian.Setting(containerEl).setName("\u81EA\u52A8\u540C\u6B65\u95F4\u9694").setDesc("\u6BCF\u9694\u591A\u5C11\u5206\u949F\u68C0\u67E5\u4E00\u6B21\u65B0\u6587\u7AE0\u3002").addText(
-      (text) => text.setValue(String(this.plugin.settings.syncIntervalMinutes)).onChange(async (value) => {
-        const parsed = Number(value);
-        this.plugin.settings.syncIntervalMinutes = Number.isFinite(parsed) && parsed > 0 ? parsed : 5;
-        await this.plugin.saveSettings();
-      })
-    );
     new import_obsidian.Setting(containerEl).setName("\u4E0B\u8F7D\u6587\u7AE0\u56FE\u7247\u5230\u672C\u5730").setDesc("\u907F\u514D\u5FAE\u4FE1\u9632\u76D7\u94FE\u5BFC\u81F4\u56FE\u7247\u65E0\u6CD5\u663E\u793A\uFF0C\u5B9E\u73B0\u6587\u7AE0\u4E0E\u56FE\u7247\u7684\u6C38\u4E45\u9632\u5220\u3001\u6C38\u4E45\u79BB\u7EBF\u4FDD\u5B58\u3002").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.localizeImages).onChange(async (value) => {
         this.plugin.settings.localizeImages = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian.Setting(containerEl).setName("\u81EA\u5B9A\u4E49 Frontmatter \u6A21\u677F").setDesc("\u81EA\u5B9A\u4E49\u7B14\u8BB0\u5F00\u5934\u7684\u5C5E\u6027\u5143\u6570\u636E\u3002\u7559\u7A7A\u4F7F\u7528\u9ED8\u8BA4\u683C\u5F0F\u3002\u4E2D\u82F1\u6587\u4E4B\u95F4\u4E0D\u52A0\u7A7A\u683C\u3002\u652F\u6301\u53D8\u91CF\uFF1A{{author}}\uFF08\u516C\u4F17\u53F7\uFF09\u3001{{date}}\uFF08\u540C\u6B65\u65E5\u671F\uFF09\u3001{{url}}\uFF08\u539F\u6587\u94FE\u63A5\uFF09\u3001{{title}}\uFF08\u6587\u7AE0\u6807\u9898\uFF09\u3001{{account}}\uFF08\u5FAE\u4FE1\u53F7\uFF09\u3001{{publish_time}}\uFF08\u53D1\u5E03\u65F6\u95F4\uFF09\u3001{{sync_time}}\uFF08\u4FDD\u5B58\u65F6\u95F4\uFF09\u3001{{sync_id}}\uFF08\u6587\u7AE0ID\uFF09\u3001{{time}}\uFF08\u5F53\u524D\u65F6\u95F4\uFF09\u3002").addTextArea((text) => {
-      text.inputEl.rows = 6;
+    new import_obsidian.Setting(containerEl).setName("\u81EA\u5B9A\u4E49 Frontmatter \u6A21\u677F (\u9009\u586B)").setDesc("\u81EA\u5B9A\u4E49\u7B14\u8BB0\u5F00\u5934\u7684\u6587\u6863\u5C5E\u6027\u3002\u7559\u7A7A\u4EE3\u8868\u4F7F\u7528\u9ED8\u8BA4\u683C\u5F0F\u3002").addTextArea((text) => {
+      text.inputEl.rows = 3;
       text.inputEl.cols = 40;
       text.setPlaceholder(
-        `source_url: "{{url}}"
-title: "{{title}}"
-author: "{{author}}"
-publish_time: "{{publish_time}}"
-sync_time: "{{sync_time}}"`
+        `\u652F\u6301\u53D8\u91CF\uFF1A{{title}}\u3001{{author}}\u3001{{url}}\u3001{{date}}\u3001{{time}}\u3001{{account}}\u3001{{publish_time}}\u3001{{sync_time}}\u3001{{sync_id}}`
       ).setValue(this.plugin.settings.customFrontmatter).onChange(async (value) => {
         this.plugin.settings.customFrontmatter = value;
         await this.plugin.saveSettings();
