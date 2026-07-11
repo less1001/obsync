@@ -308,7 +308,7 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
       console.error("Obsync sync failed", error);
       this.updateStatusBar("error");
       if (showNotice) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = getFriendlyErrorMessage(error);
         new import_obsidian.Notice(`Obsync \u540C\u6B65\u5931\u8D25\uFF1A${message}`);
       }
     }
@@ -345,7 +345,7 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
     let content = formatArticleMarkdown(article, this.settings.customFrontmatter);
     if (this.settings.localizeImages) {
       try {
-        content = await this.localizeImages(content, folder, article.id);
+        content = await this.localizeImages(content, folder, article.id, article.title);
       } catch (err) {
         console.warn("Obsync: Image localization failed, using original URLs", err);
       }
@@ -362,7 +362,8 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
       content = await this.localizeImages(
         content,
         ((_a = file.parent) == null ? void 0 : _a.path) || this.settings.syncFolder,
-        article.id
+        article.id,
+        article.title
       );
     }
     await this.app.vault.modify(file, content);
@@ -385,12 +386,12 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
     }
     return path;
   }
-  async localizeImages(markdownContent, articleFolder, articleId) {
+  async localizeImages(markdownContent, articleFolder, articleId, articleTitle) {
     const imageRegex = /!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g;
     const matches = [...markdownContent.matchAll(imageRegex)];
     if (matches.length === 0) return markdownContent;
-    const articleAttachmentFolder = sanitizeFileName(articleId) || "article";
-    const attachmentFolder = (0, import_obsidian.normalizePath)(`${articleFolder}/attachments/${articleAttachmentFolder}`);
+    const articleAttachmentFolder = sanitizeFileName(articleTitle) || sanitizeFileName(articleId) || "article";
+    const attachmentFolder = (0, import_obsidian.normalizePath)(`${articleFolder}/\u9644\u4EF6\u8D44\u6E90/${articleAttachmentFolder}`);
     await ensureFolder(this.app, attachmentFolder);
     let result = markdownContent;
     let downloadCount = 0;
@@ -419,7 +420,7 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
           } else if (!existing) {
             await this.app.vault.createBinary(imgPath, response.arrayBuffer);
           }
-          const relativePath = `attachments/${articleAttachmentFolder}/${imgFileName}`;
+          const relativePath = `\u9644\u4EF6\u8D44\u6E90/${articleAttachmentFolder}/${imgFileName}`;
           result = result.replace(fullMatch, `![${altText}](${relativePath})`);
           downloadCount++;
         }
@@ -496,7 +497,7 @@ var ObsyncSettingTab = class extends import_obsidian.PluginSettingTab {
           });
           this.display();
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
+          const message = getFriendlyErrorMessage(error);
           new import_obsidian.Notice(`\u751F\u6210\u7ED1\u5B9A\u7801\u5931\u8D25\uFF1A${message}`);
           this.bindStatus = `\u5931\u8D25\uFF1A${message}`;
           this.display();
@@ -582,4 +583,12 @@ function base64ToArrayBuffer(base64) {
     bytes[i] = binaryString.charCodeAt(i);
   }
   return bytes.buffer;
+}
+function getFriendlyErrorMessage(error) {
+  const msg = error instanceof Error ? error.message : String(error);
+  const lower = msg.toLowerCase();
+  if (lower.includes("failed to fetch") || lower.includes("net::") || lower.includes("network error") || lower.includes("connection reset") || lower.includes("econnreset") || lower.includes("enotfound") || lower.includes("status: 0") || lower.includes("status 0")) {
+    return "\u8FDE\u63A5\u670D\u52A1\u5668\u5931\u8D25\u3002\u5982\u679C\u60A8\u4F7F\u7528\u7684\u662F Windows \u7535\u8111\uFF0C\u8BF7\u68C0\u67E5\u662F\u5426\u88AB\u7535\u8111\u7BA1\u5BB6\u6216\u6740\u6BD2\u8F6F\u4EF6\uFF08\u5982 360\uFF09\u62E6\u622A\uFF0C\u5EFA\u8BAE\u9000\u51FA\u6740\u6BD2\u8F6F\u4EF6\u540E\u91CD\u8BD5\u3002";
+  }
+  return msg;
 }

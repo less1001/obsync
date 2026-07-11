@@ -246,7 +246,7 @@ export default class ObsyncPlugin extends Plugin {
       console.error("Obsync sync failed", error);
       this.updateStatusBar("error");
       if (showNotice) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = getFriendlyErrorMessage(error);
         new Notice(`Obsync 同步失败：${message}`);
       }
     }
@@ -290,7 +290,7 @@ export default class ObsyncPlugin extends Plugin {
     // Only localize images if the setting is enabled
     if (this.settings.localizeImages) {
       try {
-        content = await this.localizeImages(content, folder, article.id);
+        content = await this.localizeImages(content, folder, article.id, article.title);
       } catch (err) {
         console.warn("Obsync: Image localization failed, using original URLs", err);
       }
@@ -309,7 +309,8 @@ export default class ObsyncPlugin extends Plugin {
       content = await this.localizeImages(
         content,
         file.parent?.path || this.settings.syncFolder,
-        article.id
+        article.id,
+        article.title
       );
     }
     await this.app.vault.modify(file, content);
@@ -336,14 +337,14 @@ export default class ObsyncPlugin extends Plugin {
     return path;
   }
 
-  private async localizeImages(markdownContent: string, articleFolder: string, articleId: string): Promise<string> {
+  private async localizeImages(markdownContent: string, articleFolder: string, articleId: string, articleTitle: string): Promise<string> {
     const imageRegex = /!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g;
     const matches = [...markdownContent.matchAll(imageRegex)];
     
     if (matches.length === 0) return markdownContent;
 
-    const articleAttachmentFolder = sanitizeFileName(articleId) || "article";
-    const attachmentFolder = normalizePath(`${articleFolder}/attachments/${articleAttachmentFolder}`);
+    const articleAttachmentFolder = sanitizeFileName(articleTitle) || sanitizeFileName(articleId) || "article";
+    const attachmentFolder = normalizePath(`${articleFolder}/附件资源/${articleAttachmentFolder}`);
     await ensureFolder(this.app, attachmentFolder);
 
     let result = markdownContent;
@@ -380,7 +381,7 @@ export default class ObsyncPlugin extends Plugin {
           }
           
           // Replace the URL with relative path
-          const relativePath = `attachments/${articleAttachmentFolder}/${imgFileName}`;
+          const relativePath = `附件资源/${articleAttachmentFolder}/${imgFileName}`;
           result = result.replace(fullMatch, `![${altText}](${relativePath})`);
           downloadCount++;
         }
@@ -492,7 +493,7 @@ class ObsyncSettingTab extends PluginSettingTab {
             });
             this.display();
           } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+            const message = getFriendlyErrorMessage(error);
             new Notice(`生成绑定码失败：${message}`);
             this.bindStatus = `失败：${message}`;
             this.display();
@@ -604,4 +605,22 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
     bytes[i] = binaryString.charCodeAt(i);
   }
   return bytes.buffer;
+}
+
+function getFriendlyErrorMessage(error: any): string {
+  const msg = error instanceof Error ? error.message : String(error);
+  const lower = msg.toLowerCase();
+  if (
+    lower.includes("failed to fetch") ||
+    lower.includes("net::") ||
+    lower.includes("network error") ||
+    lower.includes("connection reset") ||
+    lower.includes("econnreset") ||
+    lower.includes("enotfound") ||
+    lower.includes("status: 0") ||
+    lower.includes("status 0")
+  ) {
+    return "连接服务器失败。如果您使用的是 Windows 电脑，请检查是否被电脑管家或杀毒软件（如 360）拦截，建议退出杀毒软件后重试。";
+  }
+  return msg;
 }
