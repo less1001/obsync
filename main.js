@@ -421,7 +421,8 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
             await this.app.vault.createBinary(imgPath, response.arrayBuffer);
           }
           const relativePath = `\u9644\u4EF6\u8D44\u6E90/${articleAttachmentFolder}/${imgFileName}`;
-          result = result.replace(fullMatch, `![${altText}](${relativePath})`);
+          const encodedPath = relativePath.replace(/ /g, "%20");
+          result = result.replace(fullMatch, `![${altText}](${encodedPath})`);
           downloadCount++;
         }
       } catch (err) {

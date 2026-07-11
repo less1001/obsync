@@ -380,9 +380,10 @@ export default class ObsyncPlugin extends Plugin {
             await this.app.vault.createBinary(imgPath, response.arrayBuffer);
           }
           
-          // Replace the URL with relative path
+          // Replace the URL with relative path (spaces must be encoded to %20 to avoid breaking Markdown link syntax)
           const relativePath = `附件资源/${articleAttachmentFolder}/${imgFileName}`;
-          result = result.replace(fullMatch, `![${altText}](${relativePath})`);
+          const encodedPath = relativePath.replace(/ /g, "%20");
+          result = result.replace(fullMatch, `![${altText}](${encodedPath})`);
           downloadCount++;
         }
       } catch (err) {
