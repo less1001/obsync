@@ -31,6 +31,11 @@ WeChat Obsync is a companion Obsidian plugin designed to sync WeChat Official Ac
 4. Go to the **设置** (Settings) tab in the Mini Program, enter the 6-digit code, and confirm.
 5. You are now connected! Any WeChat article or memo saved in the Mini Program will automatically sync to your Obsidian Vault.
 
+## Support
+
+If you find this plugin helpful, please consider supporting its development:
+- [☕ Sponsor on Afdian (爱发电)](https://ifdian.net/a/vkdefi)
+
 ## License
 
 MIT
@@ -68,6 +73,11 @@ WeChat Obsync是一个专门为Obsidian设计的微信文章与速记同步插�
 2. 在手机微信上，搜索并打开 **Obsidian同步助手** 小程序。
 3. 进入小程序底部的 **设置** 页面，在“绑定设备”输入框中填入刚刚在电脑上获取的6位数绑定码，点击确认。
 4. 绑定成功！现在你在微信小程序里保存的任何公众号文章或速记，都会在电脑打开Obsidian时自动同步写入。
+
+## 赞助支持
+
+如果您觉得这个插件对您有所帮助，欢迎赞助支持作者的持续开发：
+- [☕ 在爱发电上支持我](https://ifdian.net/a/vkdefi)
 
 ## 开源协议
 
