@@ -235,7 +235,7 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
     }
     this.updateStatusBar("syncing");
     try {
-      const response = await apiRequest(this.settings.apiBaseUrl, "/v1/sync/articles", {
+      const response = await apiRequest(this.settings.apiBaseUrl, "/v2/sync/articles", {
         token: this.settings.token
       });
       const syncIdToPath = /* @__PURE__ */ new Map();
@@ -278,7 +278,7 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
             }
             written += 1;
           }
-          await apiRequest(this.settings.apiBaseUrl, `/v1/sync/articles/${article.id}/ack`, {
+          await apiRequest(this.settings.apiBaseUrl, `/v2/sync/articles/${article.id}/ack`, {
             method: "POST",
             token: this.settings.token,
             body: { writtenPath: path }
