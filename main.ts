@@ -68,12 +68,30 @@ export default class ObsyncPlugin extends Plugin {
     });
     this.app.workspace.onLayoutReady(() => {
       void this.syncNow(false);
+      this.startSyncInterval();
     });
+  }
+
+  startSyncInterval() {
+    if (this.syncInterval) {
+      window.clearInterval(this.syncInterval);
+      this.syncInterval = undefined;
+    }
+    const minutes = this.settings.syncIntervalMinutes || 0;
+    if (minutes > 0) {
+      this.syncInterval = window.setInterval(() => {
+        void this.syncNow(false);
+      }, minutes * 60 * 1000);
+    }
   }
 
   onunload() {
     if (this.bindingPollInterval) {
       window.clearInterval(this.bindingPollInterval);
+    }
+    if (this.syncInterval) {
+      window.clearInterval(this.syncInterval);
+      this.syncInterval = undefined;
     }
   }
 
@@ -92,6 +110,7 @@ export default class ObsyncPlugin extends Plugin {
 
   async saveSettings() {
     await this.saveData(this.settings);
+    this.startSyncInterval();
   }
 
   async startBinding(): Promise<BindStartResponse> {
@@ -457,6 +476,20 @@ class ObsyncSettingTab extends PluginSettingTab {
           this.plugin.settings.localizeImages = value;
           await this.plugin.saveSettings();
         })
+      );
+
+    new Setting(containerEl)
+      .setName("同步间隔（分钟）")
+      .setDesc("自动拉取新文章的时间间隔，设为 0 禁用自动同步。修改后立即生效。")
+      .addText((text) =>
+        text
+          .setPlaceholder("1")
+          .setValue(String(this.plugin.settings.syncIntervalMinutes || 0))
+          .onChange(async (value) => {
+            const minutes = Math.max(0, Math.floor(Number(value) || 0));
+            this.plugin.settings.syncIntervalMinutes = minutes;
+            await this.plugin.saveSettings();
+          })
       );
 
     new Setting(containerEl)
