@@ -113,6 +113,54 @@ function sanitizeFileName(value) {
   return value.replace(/[\\/:*?"<>|#^[\]]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
 }
 
+// src/image-download.ts
+var IMAGE_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+function isHostOrSubdomain(hostname, domain) {
+  const normalizedHostname = hostname.toLowerCase();
+  const normalizedDomain = domain.toLowerCase();
+  return normalizedHostname === normalizedDomain || normalizedHostname.endsWith(`.${normalizedDomain}`);
+}
+function getHttpOrigin(url) {
+  if (!url) return void 0;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return void 0;
+    return `${parsed.origin}/`;
+  } catch (e) {
+    return void 0;
+  }
+}
+function getImageRefererCandidates(imageUrl, sourceUrl) {
+  const candidates = [];
+  try {
+    const hostname = new URL(imageUrl).hostname;
+    if (isHostOrSubdomain(hostname, "xhscdn.com")) {
+      candidates.push("https://www.xiaohongshu.com/");
+    } else if (isHostOrSubdomain(hostname, "qpic.cn") || isHostOrSubdomain(hostname, "qlogo.cn") || isHostOrSubdomain(hostname, "weixin.qq.com")) {
+      candidates.push("https://mp.weixin.qq.com/");
+    }
+  } catch (e) {
+  }
+  const sourceOrigin = getHttpOrigin(sourceUrl);
+  if (sourceOrigin && !candidates.includes(sourceOrigin)) {
+    candidates.push(sourceOrigin);
+  }
+  candidates.push("");
+  return candidates;
+}
+function isImageContentType(contentType) {
+  return contentType.toLowerCase().startsWith("image/");
+}
+function resolveImageExtension(contentType) {
+  const normalized = contentType.toLowerCase();
+  if (normalized.includes("png")) return ".png";
+  if (normalized.includes("gif")) return ".gif";
+  if (normalized.includes("webp")) return ".webp";
+  if (normalized.includes("svg")) return ".svg";
+  if (normalized.includes("avif")) return ".avif";
+  return ".jpg";
+}
+
 // main.ts
 var CLOUDFLARE_API_BASE_URL = "https://ob.agentok.top";
 var DEFAULT_SETTINGS = {
@@ -345,7 +393,7 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
     let content = formatArticleMarkdown(article, this.settings.customFrontmatter);
     if (this.settings.localizeImages) {
       try {
-        content = await this.localizeImages(content, folder, article.id, article.title);
+        content = await this.localizeImages(content, folder, article.id, article.title, article.sourceUrl);
       } catch (err) {
         console.warn("Obsync: Image localization failed, using original URLs", err);
       }
@@ -363,7 +411,8 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
         content,
         ((_a = file.parent) == null ? void 0 : _a.path) || this.settings.syncFolder,
         article.id,
-        article.title
+        article.title,
+        article.sourceUrl
       );
     }
     await this.app.vault.modify(file, content);
@@ -386,51 +435,65 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
     }
     return path;
   }
-  async localizeImages(markdownContent, articleFolder, articleId, articleTitle) {
+  async requestImageWithFallback(imageUrl, sourceUrl) {
+    let lastError;
+    for (const referer of getImageRefererCandidates(imageUrl, sourceUrl)) {
+      try {
+        const headers = { "User-Agent": IMAGE_USER_AGENT };
+        if (referer) headers.Referer = referer;
+        const response = await (0, import_obsidian.requestUrl)({ url: imageUrl, headers });
+        if (response.status >= 200 && response.status < 300) return response;
+        lastError = new Error(`HTTP ${response.status}`);
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError != null ? lastError : new Error("Image request failed");
+  }
+  async localizeImages(markdownContent, articleFolder, articleId, articleTitle, sourceUrl) {
     const imageRegex = /!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g;
     const matches = [...markdownContent.matchAll(imageRegex)];
     if (matches.length === 0) return markdownContent;
     const articleAttachmentFolder = sanitizeFileName(articleTitle) || sanitizeFileName(articleId) || "article";
     const attachmentFolder = (0, import_obsidian.normalizePath)(`${articleFolder}/\u9644\u4EF6\u8D44\u6E90/${articleAttachmentFolder}`);
-    await ensureFolder(this.app, attachmentFolder);
     let result = markdownContent;
     let downloadCount = 0;
-    for (const match of matches) {
+    let failedCount = 0;
+    let attachmentFolderReady = false;
+    for (const [index, match] of matches.entries()) {
       const [fullMatch, altText, imageUrl] = match;
       try {
-        const response = await (0, import_obsidian.requestUrl)({
-          url: imageUrl,
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Referer": "https://mp.weixin.qq.com/"
-          }
-        });
-        if (response.status >= 200 && response.status < 300) {
-          const contentType = response.headers["content-type"] || "";
-          let ext = ".jpg";
-          if (contentType.includes("png")) ext = ".png";
-          else if (contentType.includes("gif")) ext = ".gif";
-          else if (contentType.includes("webp")) ext = ".webp";
-          else if (contentType.includes("svg")) ext = ".svg";
-          const imgFileName = `img_${downloadCount + 1}${ext}`;
-          const imgPath = (0, import_obsidian.normalizePath)(`${attachmentFolder}/${imgFileName}`);
-          const existing = this.app.vault.getAbstractFileByPath(imgPath);
-          if (existing instanceof import_obsidian.TFile) {
-            await this.app.vault.modifyBinary(existing, response.arrayBuffer);
-          } else if (!existing) {
-            await this.app.vault.createBinary(imgPath, response.arrayBuffer);
-          }
-          const relativePath = `\u9644\u4EF6\u8D44\u6E90/${articleAttachmentFolder}/${imgFileName}`;
-          const encodedPath = relativePath.replace(/ /g, "%20");
-          result = result.replace(fullMatch, `![${altText}](${encodedPath})`);
-          downloadCount++;
+        const response = await this.requestImageWithFallback(imageUrl, sourceUrl);
+        const contentType = response.headers["content-type"] || "";
+        if (!isImageContentType(contentType)) {
+          throw new Error(`Unexpected content type: ${contentType || "unknown"}`);
         }
+        if (!attachmentFolderReady) {
+          await ensureFolder(this.app, attachmentFolder);
+          attachmentFolderReady = true;
+        }
+        const imgFileName = `img_${index + 1}${resolveImageExtension(contentType)}`;
+        const imgPath = (0, import_obsidian.normalizePath)(`${attachmentFolder}/${imgFileName}`);
+        const existing = this.app.vault.getAbstractFileByPath(imgPath);
+        if (existing instanceof import_obsidian.TFile) {
+          await this.app.vault.modifyBinary(existing, response.arrayBuffer);
+        } else if (!existing) {
+          await this.app.vault.createBinary(imgPath, response.arrayBuffer);
+        }
+        const relativePath = `\u9644\u4EF6\u8D44\u6E90/${articleAttachmentFolder}/${imgFileName}`;
+        const encodedPath = relativePath.replace(/ /g, "%20");
+        result = result.replace(fullMatch, `![${altText}](${encodedPath})`);
+        downloadCount++;
       } catch (err) {
+        failedCount++;
         console.warn(`Obsync: Failed to download image: ${imageUrl}`, err);
       }
     }
     if (downloadCount > 0) {
       console.log(`Obsync: Downloaded ${downloadCount} images for article`);
+    }
+    if (failedCount > 0) {
+      new import_obsidian.Notice(`Obsync\uFF1A${failedCount} \u5F20\u56FE\u7247\u4E0B\u8F7D\u5931\u8D25\uFF0C\u5DF2\u4FDD\u7559\u8FDC\u7A0B\u94FE\u63A5\u3002`);
     }
     return result;
   }
