@@ -16,6 +16,12 @@ import type {
   SyncArticlesResponse
 } from "@obsync/shared";
 import { formatArticleMarkdown, resolveArticleFileName, sanitizeFileName } from "./src/markdown";
+import {
+  getImageRefererCandidates,
+  IMAGE_USER_AGENT,
+  isImageContentType,
+  resolveImageExtension
+} from "./src/image-download";
 
 interface ObsyncSettings {
   settingsVersion?: number;
@@ -290,7 +296,7 @@ export default class ObsyncPlugin extends Plugin {
     // Only localize images if the setting is enabled
     if (this.settings.localizeImages) {
       try {
-        content = await this.localizeImages(content, folder, article.id, article.title);
+        content = await this.localizeImages(content, folder, article.id, article.title, article.sourceUrl);
       } catch (err) {
         console.warn("Obsync: Image localization failed, using original URLs", err);
       }
@@ -310,7 +316,8 @@ export default class ObsyncPlugin extends Plugin {
         content,
         file.parent?.path || this.settings.syncFolder,
         article.id,
-        article.title
+        article.title,
+        article.sourceUrl
       );
     }
     await this.app.vault.modify(file, content);
@@ -337,7 +344,32 @@ export default class ObsyncPlugin extends Plugin {
     return path;
   }
 
-  private async localizeImages(markdownContent: string, articleFolder: string, articleId: string, articleTitle: string): Promise<string> {
+  private async requestImageWithFallback(imageUrl: string, sourceUrl?: string) {
+    let lastError: unknown;
+
+    for (const referer of getImageRefererCandidates(imageUrl, sourceUrl)) {
+      try {
+        const headers: Record<string, string> = { "User-Agent": IMAGE_USER_AGENT };
+        if (referer) headers.Referer = referer;
+
+        const response = await requestUrl({ url: imageUrl, headers });
+        if (response.status >= 200 && response.status < 300) return response;
+        lastError = new Error(`HTTP ${response.status}`);
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    throw lastError ?? new Error("Image request failed");
+  }
+
+  private async localizeImages(
+    markdownContent: string,
+    articleFolder: string,
+    articleId: string,
+    articleTitle: string,
+    sourceUrl?: string
+  ): Promise<string> {
     const imageRegex = /!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g;
     const matches = [...markdownContent.matchAll(imageRegex)];
     
@@ -345,55 +377,54 @@ export default class ObsyncPlugin extends Plugin {
 
     const articleAttachmentFolder = sanitizeFileName(articleTitle) || sanitizeFileName(articleId) || "article";
     const attachmentFolder = normalizePath(`${articleFolder}/附件资源/${articleAttachmentFolder}`);
-    await ensureFolder(this.app, attachmentFolder);
 
     let result = markdownContent;
     let downloadCount = 0;
+    let failedCount = 0;
+    let attachmentFolderReady = false;
     
-    for (const match of matches) {
+    for (const [index, match] of matches.entries()) {
       const [fullMatch, altText, imageUrl] = match;
       try {
-        const response = await requestUrl({
-          url: imageUrl,
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Referer": "https://mp.weixin.qq.com/"
-          }
-        });
-        if (response.status >= 200 && response.status < 300) {
-          // Determine file extension from URL or content-type
-          const contentType = response.headers["content-type"] || "";
-          let ext = ".jpg";
-          if (contentType.includes("png")) ext = ".png";
-          else if (contentType.includes("gif")) ext = ".gif";
-          else if (contentType.includes("webp")) ext = ".webp";
-          else if (contentType.includes("svg")) ext = ".svg";
-          
-          const imgFileName = `img_${downloadCount + 1}${ext}`;
-          const imgPath = normalizePath(`${attachmentFolder}/${imgFileName}`);
-          
-          // Write the binary content
-          const existing = this.app.vault.getAbstractFileByPath(imgPath);
-          if (existing instanceof TFile) {
-            await this.app.vault.modifyBinary(existing, response.arrayBuffer);
-          } else if (!existing) {
-            await this.app.vault.createBinary(imgPath, response.arrayBuffer);
-          }
-          
-          // Replace the URL with relative path (spaces must be encoded to %20 to avoid breaking Markdown link syntax)
-          const relativePath = `附件资源/${articleAttachmentFolder}/${imgFileName}`;
-          const encodedPath = relativePath.replace(/ /g, "%20");
-          result = result.replace(fullMatch, `![${altText}](${encodedPath})`);
-          downloadCount++;
+        const response = await this.requestImageWithFallback(imageUrl, sourceUrl);
+        const contentType = response.headers["content-type"] || "";
+        if (!isImageContentType(contentType)) {
+          throw new Error(`Unexpected content type: ${contentType || "unknown"}`);
         }
+
+        if (!attachmentFolderReady) {
+          await ensureFolder(this.app, attachmentFolder);
+          attachmentFolderReady = true;
+        }
+
+        const imgFileName = `img_${index + 1}${resolveImageExtension(contentType)}`;
+        const imgPath = normalizePath(`${attachmentFolder}/${imgFileName}`);
+
+        // Write the binary content
+        const existing = this.app.vault.getAbstractFileByPath(imgPath);
+        if (existing instanceof TFile) {
+          await this.app.vault.modifyBinary(existing, response.arrayBuffer);
+        } else if (!existing) {
+          await this.app.vault.createBinary(imgPath, response.arrayBuffer);
+        }
+
+        // Replace the URL with relative path (spaces must be encoded to %20 to avoid breaking Markdown link syntax)
+        const relativePath = `附件资源/${articleAttachmentFolder}/${imgFileName}`;
+        const encodedPath = relativePath.replace(/ /g, "%20");
+        result = result.replace(fullMatch, `![${altText}](${encodedPath})`);
+        downloadCount++;
       } catch (err) {
         // If download fails, keep the original URL
+        failedCount++;
         console.warn(`Obsync: Failed to download image: ${imageUrl}`, err);
       }
     }
     
     if (downloadCount > 0) {
       console.log(`Obsync: Downloaded ${downloadCount} images for article`);
+    }
+    if (failedCount > 0) {
+      new Notice(`Obsync：${failedCount} 张图片下载失败，已保留远程链接。`);
     }
     
     return result;
