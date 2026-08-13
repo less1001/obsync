@@ -15,7 +15,7 @@ import type {
   PublicArticle,
   SyncArticlesResponse
 } from "@obsync/shared";
-import { formatArticleMarkdown, resolveArticleFileName, sanitizeFileName } from "./src/markdown";
+import { encodeMarkdownLinkPath, formatArticleMarkdown, resolveArticleFileName, sanitizeFileName } from "./src/markdown";
 
 interface ObsyncSettings {
   settingsVersion?: number;
@@ -382,7 +382,7 @@ export default class ObsyncPlugin extends Plugin {
           
           // Replace the URL with relative path (spaces must be encoded to %20 to avoid breaking Markdown link syntax)
           const relativePath = `附件资源/${articleAttachmentFolder}/${imgFileName}`;
-          const encodedPath = relativePath.replace(/ /g, "%20");
+          const encodedPath = encodeMarkdownLinkPath(relativePath);
           result = result.replace(fullMatch, `![${altText}](${encodedPath})`);
           downloadCount++;
         }
