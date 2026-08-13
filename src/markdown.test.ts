@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatArticleMarkdown, sanitizeFileName } from "./markdown";
+import { encodeMarkdownLinkPath, formatArticleMarkdown, sanitizeFileName } from "./markdown";
 
 describe("markdown helpers", () => {
   it("formats frontmatter and body", () => {
@@ -23,5 +23,12 @@ describe("markdown helpers", () => {
 
   it("sanitizes unsafe file names", () => {
     expect(sanitizeFileName('2026 - a/b:c*?<>|"')).toBe("2026 - a b c");
+  });
+
+  it("encodes special chars in markdown link paths", () => {
+    expect(encodeMarkdownLinkPath("附件资源/苹果(AAPL)&腾讯 100%'财报'/img_1.png")).toBe(
+      "附件资源/苹果%28AAPL%29%26腾讯%20100%25%27财报%27/img_1.png"
+    );
+    expect(encodeMarkdownLinkPath("附件资源/测试/img_2.png")).toBe("附件资源/测试/img_2.png");
   });
 });

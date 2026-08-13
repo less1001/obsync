@@ -95,3 +95,20 @@ export function sanitizeFileName(value: string): string {
     .trim()
     .slice(0, 120);
 }
+
+/**
+ * Encode a path for use inside a Markdown link destination.
+ * sanitizeFileName keeps ( ) & % ' in folder names (valid in file names),
+ * but those characters break Markdown link syntax. Percent-encode them so
+ * Obsidian can resolve the link back to the real file.
+ * % must be encoded first, otherwise the escapes below get re-encoded.
+ */
+export function encodeMarkdownLinkPath(path: string): string {
+  return path
+    .replace(/%/g, "%25")
+    .replace(/\(/g, "%28")
+    .replace(/\)/g, "%29")
+    .replace(/&/g, "%26")
+    .replace(/'/g, "%27")
+    .replace(/ /g, "%20");
+}
