@@ -1,84 +1,116 @@
-# WeChat Obsync
+# Obsync (WeChat & Web to Obsidian Sync Engine)
 
-WeChat Obsync is a companion Obsidian plugin designed to sync WeChat Official Account articles and notes from the "Obsidian同步助手" WeChat Mini Program directly into your Obsidian Vault.
+<p align="center">
+  <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT">
+  <img src="https://img.shields.io/badge/Obsidian-Plugin-purple.svg" alt="Obsidian Plugin">
+  <img src="https://img.shields.io/badge/Cloudflare-Workers%20%26%20D1-orange.svg" alt="Cloudflare Workers">
+  <img src="https://img.shields.io/badge/TypeScript-Ready-blue.svg" alt="TypeScript">
+  <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen.svg" alt="PRs Welcome">
+</p>
 
-## Features
+**Obsync** is an open-source, serverless content capture and cross-platform synchronization engine built specifically for the **[Obsidian](https://obsidian.md/)** knowledge base ecosystem.
 
-- **One-click WeChat Article Sync**: Sync WeChat Official Account articles to your vault as beautifully formatted Markdown files.
-- **Direct Memos / Notes Sync**: Save text snippets, memos, and ideas directly from the WeChat Mini Program to Obsidian.
-- **De-duplication**: Automatically avoids saving duplicate articles.
-- **Status Bar Indicator**: Real-time status update showing the last sync time and status.
-- **Beautiful Dark Glassmorphism UI**: High-fidelity WeChat Mini Program interface.
-
-## Installation
-
-### From the Obsidian Community Plugin Store (Pending official listing)
-1. Go to **Settings** -> **Community plugins** -> **Browse**.
-2. Search for `WeChat Obsync`.
-3. Click **Install**, then **Enable**.
-
-### Manual Installation
-1. Download `main.js`, `manifest.json`, and `styles.css` from the latest release.
-2. Create a folder named `wechat-obsync` under `.obsidian/plugins/` in your Obsidian Vault.
-3. Move the downloaded files into that folder.
-4. Reload Obsidian and enable `WeChat Obsync` in settings.
-
-## Getting Started
-
-1. Enable the plugin in your Obsidian settings.
-2. In the plugin settings tab, click **生成** (Generate) to get a 6-digit binding code.
-3. Open the **Obsidian同步助手** WeChat Mini Program on your phone.
-4. Go to the **设置** (Settings) tab in the Mini Program, enter the 6-digit code, and confirm.
-5. You are now connected! Any WeChat article or memo saved in the Mini Program will automatically sync to your Obsidian Vault.
-
-## Support
-
-If you find this plugin helpful, please consider supporting its development:
-- [☕ Sponsor on Afdian (爱发电)](https://ifdian.net/a/vkdefi)
-
-## License
-
-MIT
+It empowers knowledge workers, researchers, and writers to seamlessly capture WeChat Official Account articles, web pages, and instant memos on mobile devices, transform them into clean structured Markdown via an edge AST parser, and automatically synchronize them to local Obsidian vaults.
 
 ---
 
-# WeChat Obsync (微信小程序同步助手)
+## 🌟 Key Features
 
-WeChat Obsync是一个专门为Obsidian设计的微信文章与速记同步插件。配合微信小程序“Obsidian同步助手”，它可以将你在微信上刷到的公众号文章、临时想法、速记等内容，一键无缝同步到你的Obsidian本地库中。
+* **⚡ One-Tap Edge Capture**: Save WeChat articles, web links, or quick memos directly from mobile devices without keeping Obsidian constantly running.
+* **📝 Intelligent AST to Markdown Conversion**: Powered by Readability and custom Turndown AST rules to extract pure Markdown with clean frontmatter metadata (title, author, source URL, publish date, tags).
+* **☁️ Serverless Edge Architecture**: Deployed globally on Cloudflare Workers and Cloudflare D1 (SQLite) with sub-10ms response times, zero server maintenance, and automated cron data pruning.
+* **🔄 Multi-Device Synchronization**: Robust device acknowledgment protocol supporting multiple Obsidian clients (Desktop, Mobile, iPad) concurrently without duplication or data loss.
+* **🛡️ Privacy-First & Local-First**: Notes are directly synced into your local Obsidian vault files. Cloud storage functions strictly as a temporary transient sync buffer.
 
-## 功能特性
+---
 
-- **公众号文章一键同步**：支持将微信公众号的长图文文章（以及短动态）一键同步到你的笔记库，自动转化为排版精美的Markdown文件。
-- **微信速记直接同步**：在微信小程序中输入的文本、想法、速记，能直接同步写入Obsidian。
-- **自动防重（去重）**：自动识别已同步的文章，避免重复下载。
-- **状态栏实时状态**：在Obsidian状态栏实时显示同步状态和最后同步时间。
-- **多媒体解析优化**：自动提取视频链接、还原表格和代码块，支持自动下载文章图片到本地防止微信防盗链图裂。
+## 📐 System Architecture
 
-## 安装方法
+```mermaid
+graph TD
+    A[📱 Mobile / WeChat Mini Program] -->|1. Submit Article / Memo| B(🌐 Cloudflare Worker Edge API)
+    B -->|2. Extract & Parse DOM to Markdown| C[📄 Readability & Turndown Parser]
+    C -->|3. Store Structured Markdown| D[(🗄️ Cloudflare D1 Database)]
+    E[💻 Obsidian Client / Plugin] -->|4. Pull Pending Articles /v2/sync| B
+    B -->|5. Deliver Clean Markdown| E
+    E -->|6. Save to Local Vault & Send Ack| B
+    F[⏰ Cloudflare Cron Triggers] -->|Daily Auto-Prune Synced Data| D
+```
 
-### 方法一：从Obsidian社区插件市场安装（推荐）
-1. 打开Obsidian，进入 **设置** -> **第三方插件** -> **社区插件市场(浏览)**。
-2. 搜索 `WeChat Obsync`。
-3. 点击 **安装**，安装完成后点击 **启用**。
+---
 
-### 方法二：手动安装
-1. 在GitHub的最新Release页面下载 `main.js`、`manifest.json` 和 `styles.css` 三个文件。
-2. 进入你Obsidian笔记库的 `.obsidian/plugins/` 目录，新建一个名为 `wechat-obsync` 的文件夹。
-3. 将下载的三个文件放入该文件夹中。
-4. 返回Obsidian，在第三方插件列表里重新加载并启用 `WeChat Obsync`。
+## 📂 Project Structure
 
-## 开始使用
+This monorepo is structured as follows:
 
-1. 在Obsidian中启用该插件，并在插件设置面板中，点击 **生成** 按钮获取一个6位数绑定码。
-2. 在手机微信上，搜索并打开 **Obsidian同步助手** 小程序。
-3. 进入小程序底部的 **设置** 页面，在“绑定设备”输入框中填入刚刚在电脑上获取的6位数绑定码，点击确认。
-4. 绑定成功！现在你在微信小程序里保存的任何公众号文章或速记，都会在电脑打开Obsidian时自动同步写入。
+```text
+obsync/
+├── apps/
+│   ├── miniprogram/        # WeChat Mini Program (Mobile capture UI & device binding)
+│   ├── obsidian-plugin/    # Obsidian Community Plugin (Vault sync client)
+│   └── worker/             # Cloudflare Workers & D1 Edge API backend
+└── packages/
+    └── shared/             # Shared TypeScript schemas, types, and validation models
+```
 
-## 赞助支持
+---
 
-如果您觉得这个插件对您有所帮助，欢迎赞助支持作者的持续开发：
-- [☕ 在爱发电上支持我](https://ifdian.net/a/vkdefi)
+## 🚀 Quick Start
 
-## 开源协议
+### Prerequisites
+* Node.js >= 18.0.0
+* npm >= 9.0.0
+* Cloudflare Wrangler CLI (`npm install -g wrangler`)
 
-MIT
+### Local Development
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/less1001/obsync.git
+   cd obsync
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   npm install
+   npm run build
+   ```
+
+3. **Run the Worker API locally**:
+   ```bash
+   npm run dev -w apps/worker
+   ```
+
+4. **Build the Obsidian Plugin**:
+   ```bash
+   npm run build -w apps/obsidian-plugin
+   ```
+   Copy `main.js`, `manifest.json`, and `styles.css` from `apps/obsidian-plugin` into your Obsidian vault's `.obsidian/plugins/obsync/` directory.
+
+---
+
+## 🛠️ Tech Stack
+
+* **Client**: Obsidian Plugin API, TypeScript, HTML/CSS
+* **Mobile**: WeChat Mini Program Framework (JavaScript, WXML, WXSS)
+* **Backend**: Cloudflare Workers, Cloudflare D1 (Serverless SQLite), TypeScript
+* **Parsing Engine**: JSDOM, Mozilla Readability, Turndown Service, DOMPurify
+* **Validation**: Zod Schemas
+
+---
+
+## 🤝 Contributing
+
+Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/less1001/obsync/issues).
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+Distributed under the **MIT License**. See `LICENSE` for more information.
