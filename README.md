@@ -2,6 +2,7 @@
 
 <p align="center">
   <a href="https://community.obsidian.md/plugins/wechat-obsync"><img src="https://img.shields.io/badge/Obsidian%20Community%20Plugin-5k%2B%20Downloads-7057ff.svg?logo=obsidian" alt="Obsidian Downloads"></a>
+  <a href="https://github.com/less1001/obsync/actions/workflows/ci.yml"><img src="https://github.com/less1001/obsync/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/Health-Excellent-success.svg" alt="Health: Excellent">
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/Cloudflare-Workers%20%26%20D1-orange.svg" alt="Cloudflare Workers">
