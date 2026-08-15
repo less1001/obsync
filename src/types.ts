@@ -8,6 +8,8 @@ export interface PublicArticle {
   savedAt: string;
   markdown: string;
   excerpt?: string;
+  contentKind?: "article" | "memo" | "file";
+  contentType?: string;
   parseStatus: "ok" | "failed";
   parseError?: string;
 }

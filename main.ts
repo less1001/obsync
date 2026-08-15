@@ -14,7 +14,7 @@ import type {
   BindStatusResponse,
   PublicArticle,
   SyncArticlesResponse
-} from "@obsync/shared";
+} from "./src/types";
 import { formatArticleMarkdown, resolveArticleFileName, sanitizeFileName } from "./src/markdown";
 
 interface ObsyncSettings {

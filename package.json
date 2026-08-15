@@ -1,17 +1,23 @@
 {
   "name": "obsidian-obsync",
   "version": "0.4.10",
-  "private": true,
-  "type": "module",
+  "description": "Sync WeChat Official Account articles and notes from Mini Program directly into Obsidian Vault.",
   "main": "main.js",
   "scripts": {
-    "build": "tsc -noEmit -skipLibCheck && esbuild main.ts --bundle --external:obsidian --format=cjs --target=es2018 --outfile=main.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "esbuild main.ts --bundle --external:obsidian --format=cjs --target=es2018 --outfile=main.js --watch",
+    "build": "esbuild main.ts --bundle --external:obsidian --format=cjs --target=es2018 --outfile=main.js",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run src"
   },
-  "dependencies": {
-    "@obsync/shared": "file:../../packages/shared"
-  },
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "wechat",
+    "markdown",
+    "sync"
+  ],
+  "author": "less1001",
+  "license": "MIT",
   "devDependencies": {
     "@types/node": "^22.15.29",
     "esbuild": "^0.28.1",

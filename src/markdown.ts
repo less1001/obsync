@@ -1,4 +1,4 @@
-import type { PublicArticle } from "@obsync/shared";
+import type { PublicArticle } from "./types";
 
 export function parseTemplate(article: PublicArticle, customTemplate?: string) {
   const now = new Date();

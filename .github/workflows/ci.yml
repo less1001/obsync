@@ -17,8 +17,16 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '20.x'
+        cache: 'npm'
 
-    - name: Install esbuild and build plugin
-      run: |
-        npm install esbuild typescript --no-save
-        npx esbuild main.ts --bundle --external:obsidian --format=cjs --target=es2018 --outfile=main.js
+    - name: Install dependencies
+      run: npm install
+
+    - name: Run TypeScript typecheck
+      run: npm run typecheck
+
+    - name: Run unit tests
+      run: npm test
+
+    - name: Build plugin
+      run: npm run build

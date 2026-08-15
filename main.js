@@ -1,9 +1,7 @@
-"use strict";
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
@@ -17,7 +15,6 @@ var __copyProps = (to, from, except, desc) => {
   return to;
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
 // main.ts
 var main_exports = {};
@@ -130,12 +127,9 @@ var DEFAULT_SETTINGS = {
 var ObsyncPlugin = class extends import_obsidian.Plugin {
   constructor() {
     super(...arguments);
-    __publicField(this, "settings", DEFAULT_SETTINGS);
-    __publicField(this, "statusBarEl");
-    __publicField(this, "lastSyncTime", null);
-    __publicField(this, "syncInterval");
-    __publicField(this, "bindingPollInterval");
-    __publicField(this, "activeSync", null);
+    this.settings = DEFAULT_SETTINGS;
+    this.lastSyncTime = null;
+    this.activeSync = null;
   }
   async onload() {
     await this.loadSettings();
@@ -439,9 +433,9 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
 var ObsyncSettingTab = class extends import_obsidian.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
-    __publicField(this, "plugin", plugin);
-    __publicField(this, "bindCode", "");
-    __publicField(this, "bindStatus", "");
+    this.plugin = plugin;
+    this.bindCode = "";
+    this.bindStatus = "";
   }
   display() {
     const { containerEl } = this;
