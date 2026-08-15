@@ -34,6 +34,43 @@ It empowers knowledge workers, researchers, and writers to seamlessly capture We
 * **🔄 Multi-Device Synchronization**: Robust device acknowledgment protocol supporting multiple Obsidian clients (Desktop, Mobile, iPad) concurrently without duplication or data loss.
 * **🛡️ Privacy-First & Local-First**: Notes are directly synced into your local Obsidian vault files. Cloud storage functions strictly as a temporary transient sync buffer.
 
+---
+
+### 📸 Live Workflow & End-to-End Previews
+
+#### 1. Mobile Content Capture & Sync Queue
+The mobile WeChat Mini Program allows users to capture articles via native share menus or clipboard detection, while tracking queue status and sync history in real time.
+
+<p align="center">
+  <img src="assets/readme-evidence/mobile-save-success.jpg" alt="WeChat Mini Program Mobile Article Capture" width="300">&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/readme-evidence/mobile-sync-history.png" alt="WeChat Mini Program Sync History & Queue Status" width="300">
+</p>
+<p align="center">
+  <em>Left: Mobile capture interface recognizing and saving a WeChat article. Right: Sync history showing synced and pending articles.</em>
+</p>
+
+#### 2. Plugin Settings & Vault Configuration
+The desktop Obsidian plugin provides rich configuration options including device binding status, custom target folders, localized image downloading toggles, Frontmatter customization, and manual sync triggers.
+
+<p align="center">
+  <img src="assets/readme-evidence/obsidian-plugin-settings.png" alt="Obsidian Plugin Settings & Configuration UI" width="620">
+</p>
+<p align="center">
+  <em>Obsidian settings tab showing active device connection, custom sync folder, attachment options, and sync controls.</em>
+</p>
+
+#### 3. Synchronized Markdown Result in Obsidian
+Captured articles are delivered directly into your local vault as formatted Markdown files, complete with standardized frontmatter metadata and `parse_status: ok`.
+
+<p align="center">
+  <img src="assets/readme-evidence/obsidian-sync-result.png" alt="Synchronized Markdown Article in Obsidian with Frontmatter" width="680">
+</p>
+<p align="center">
+  <em>Local Obsidian note view showing synchronized article with clean YAML frontmatter metadata (parse_status: ok, author, source URL, date) and formatted content.</em>
+</p>
+
+---
+
 ### 📐 System Architecture
 
 ```mermaid
@@ -46,6 +83,8 @@ graph TD
     E -->|6. Save to Local Vault & Send Ack| B
     F[⏰ Cloudflare Cron Triggers] -->|Daily Auto-Prune Synced Data| D
 ```
+
+---
 
 ### 📂 Project Structure
 
@@ -61,6 +100,8 @@ obsync/
 ├── tsconfig.json       # TypeScript compiler configuration
 └── package.json        # Plugin dependencies & build scripts
 ```
+
+---
 
 ### 🚀 Installation & Getting Started
 
@@ -125,28 +166,46 @@ obsync/
 
 ### 📖 详细使用教程（如何连接微信小程序）
 
-#### 第一步：在 Obsidian 中获取 6 位绑定码
+#### 第一步：在 Obsidian 中获取 6 位绑定码 & 配置插件
 1. 在 Obsidian 中点击左下角 **设置** -> 在左侧找到 **WeChat Obsync** 插件设置页。
-2. 在「绑定设备」区域，点击 **生成绑定码** 按钮。
-3. 此时屏幕上会显示一个 **6 位数字绑定码**（有效时间为 10 分钟）。
+2. 在「绑定设备」区域，点击 **生成绑定码** 按钮，获得 6 位数字绑定码（有效时间为 10 分钟）。
+3. 可在此页面配置文章保存目录、是否自动下载图片以及自定义 Frontmatter 模板：
+
+<p align="center">
+  <img src="assets/readme-evidence/obsidian-plugin-settings.png" alt="Obsidian WeChat Obsync 插件设置界面" width="620">
+</p>
+<p align="center">
+  <em>插件设置面板：展示绑定状态、保存目录选择、图片本地化下载与即时同步选项。</em>
+</p>
 
 #### 第二步：在手机微信中确认绑定
 1. 打开手机微信，搜索并打开小程序 **「Obsidian同步助手」**。
 2. 点击小程序底部的 **「设置」** 标签页。
-3. 在输入框中填入刚才在电脑上看到的 **6 位绑定码**，点击 **立即绑定**。
-4. 提示绑定成功后，手机端与你的本地 Obsidian 库就已建立加密关联！
+3. 在输入框中填入刚才在电脑上看到的 **6 位绑定码**，点击 **立即绑定**。提示绑定成功后即可开始同步。
 
-#### 第三步：开始保存与同步文章
-* **方式 A（用小程序打开，最便捷）**：
-  在手机微信中阅读任意公众号文章时，点击右上角 **「···」** ➔ 选择 **「用小程序打开」** ➔ 点击 **「Obsidian同步助手」** 即可一键保存！
-* **方式 B（复制链接保存）**：
-  复制文章链接，打开小程序首页，点击 **「一键读取剪贴板并保存」** 即可。
-* **方式 C（灵感速记）**：
-  打开小程序首页的「随笔速记」卡片，输入临时想法点击保存。
+#### 第三步：手机端保存微信文章与查看记录
+* **方式 A（用小程序打开，最便捷）**：在微信中阅读公众号文章时，点击右上角 **「···」** ➔ 选择 **「用小程序打开」** ➔ 点击 **「Obsidian同步助手」** 即可一键保存！
+* **方式 B（复制链接保存）**：复制文章链接，打开小程序首页，点击 **「一键读取剪贴板并保存」**。
+* **方式 C（灵感速记）**：打开小程序首页的「随笔速记」卡片输入文字保存。
 
-#### 第四步：在 Obsidian 中查看笔记
-* 只要打开 Obsidian，插件便会自动从云端拉取待同步文章，并在几秒钟内将转化好的 Markdown 文件写入你指定的文件夹中！
-* 你也可以随时使用快捷键或点击左侧缎带栏的同步图标手动触发即时同步。
+<p align="center">
+  <img src="assets/readme-evidence/mobile-save-success.jpg" alt="微信小程序识别并保存公众号文章" width="300">&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/readme-evidence/mobile-sync-history.png" alt="微信小程序文章同步记录与队列状态" width="300">
+</p>
+<p align="center">
+  <em>左图：手机端一键识别并成功保存公众号文章。右图：同步历史记录列表与状态查看。</em>
+</p>
+
+#### 第四步：在 Obsidian 中查看最终生成的笔记
+* 打开 Obsidian，插件会自动拉取待同步文章并写入本地仓库。
+* 每篇文章均带有完整的 Frontmatter YAML 元数据（包含 `parse_status: ok`、作者、原链接、发布日期）以及排版优美的 Markdown 正文：
+
+<p align="center">
+  <img src="assets/readme-evidence/obsidian-sync-result.png" alt="Obsidian 本地成功同步生成的 Markdown 文章" width="680">
+</p>
+<p align="center">
+  <em>Obsidian 本地笔记效果：清晰规范的 YAML 属性头与排版完备的 Markdown 笔记正文。</em>
+</p>
 
 ---
 
