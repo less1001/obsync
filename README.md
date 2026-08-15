@@ -20,6 +20,12 @@
 
 It empowers knowledge workers, researchers, and writers to seamlessly capture WeChat Official Account articles, web pages, and instant memos on mobile devices, transform them into clean structured Markdown via an edge AST parser, and automatically synchronize them to local Obsidian vaults.
 
+<p align="center">
+  <a href="https://community.obsidian.md/plugins/wechat-obsync">
+    <img src="assets/obsidian-community-plugin.png" alt="Obsidian Community Plugin Official Listing (5k+ Downloads, Excellent Health)" width="850">
+  </a>
+</p>
+
 ### 🌟 Key Features
 
 * **⚡ One-Tap Edge Capture**: Save WeChat articles, web links, or quick memos directly from mobile devices without keeping Obsidian constantly running.
