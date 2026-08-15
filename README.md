@@ -1,14 +1,14 @@
 # Obsync (WeChat & Web to Obsidian Sync Engine)
 
 <p align="center">
+  <a href="https://community.obsidian.md/plugins/wechat-obsync"><img src="https://img.shields.io/badge/Obsidian%20Community%20Plugin-5k%2B%20Downloads-7057ff.svg?logo=obsidian" alt="Obsidian Downloads"></a>
+  <img src="https://img.shields.io/badge/Health-Excellent-success.svg" alt="Health: Excellent">
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/Obsidian-Plugin-purple.svg" alt="Obsidian Plugin">
   <img src="https://img.shields.io/badge/Cloudflare-Workers%20%26%20D1-orange.svg" alt="Cloudflare Workers">
   <img src="https://img.shields.io/badge/TypeScript-Ready-blue.svg" alt="TypeScript">
-  <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen.svg" alt="PRs Welcome">
 </p>
 
-**Obsync** is an open-source, serverless content capture and cross-platform synchronization engine built specifically for the **[Obsidian](https://obsidian.md/)** knowledge base ecosystem.
+**Obsync** is an open-source, serverless content capture and cross-platform synchronization engine built specifically for the **[Obsidian](https://obsidian.md/)** knowledge base ecosystem. Officially listed in the [Obsidian Community Plugins Directory](https://community.obsidian.md/plugins/wechat-obsync) with **5,000+ active downloads** and an **Excellent** community health rating.
 
 It empowers knowledge workers, researchers, and writers to seamlessly capture WeChat Official Account articles, web pages, and instant memos on mobile devices, transform them into clean structured Markdown via an edge AST parser, and automatically synchronize them to local Obsidian vaults.
 
