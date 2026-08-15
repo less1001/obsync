@@ -41,51 +41,43 @@ graph TD
 
 ## 📂 Project Structure
 
-This monorepo is structured as follows:
-
 ```text
 obsync/
-├── apps/
-│   ├── miniprogram/        # WeChat Mini Program (Mobile capture UI & device binding)
-│   ├── obsidian-plugin/    # Obsidian Community Plugin (Vault sync client)
-│   └── worker/             # Cloudflare Workers & D1 Edge API backend
-└── packages/
-    └── shared/             # Shared TypeScript schemas, types, and validation models
+├── main.ts             # Obsidian plugin core lifecycle & sync commands
+├── main.js             # Compiled distribution bundle
+├── manifest.json       # Obsidian plugin manifest & metadata (v0.4.10)
+├── styles.css          # Plugin UI styling & status indicators
+├── src/
+│   ├── markdown.ts     # Markdown processing, frontmatter & asset handling
+│   └── types.ts        # TypeScript data models and API schemas
+├── tsconfig.json       # TypeScript compiler configuration
+└── package.json        # Plugin dependencies & build scripts
 ```
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start & Installation
 
-### Prerequisites
-* Node.js >= 18.0.0
-* npm >= 9.0.0
-* Cloudflare Wrangler CLI (`npm install -g wrangler`)
+### Option 1: Direct Installation (Recommended)
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [Latest Release (v0.4.10)](https://github.com/less1001/obsync/releases/latest).
+2. Inside your Obsidian Vault, navigate to `.obsidian/plugins/` and create a folder named `obsync`.
+3. Place `main.js`, `manifest.json`, and `styles.css` into `.obsidian/plugins/obsync/`.
+4. Open Obsidian -> **Settings** -> **Community Plugins**, and toggle on **WeChat Obsync**.
 
-### Local Development
-
+### Option 2: Local Development & Build
 1. **Clone the repository**:
    ```bash
    git clone https://github.com/less1001/obsync.git
    cd obsync
    ```
-
 2. **Install dependencies**:
    ```bash
    npm install
+   ```
+3. **Build the plugin**:
+   ```bash
    npm run build
    ```
-
-3. **Run the Worker API locally**:
-   ```bash
-   npm run dev -w apps/worker
-   ```
-
-4. **Build the Obsidian Plugin**:
-   ```bash
-   npm run build -w apps/obsidian-plugin
-   ```
-   Copy `main.js`, `manifest.json`, and `styles.css` from `apps/obsidian-plugin` into your Obsidian vault's `.obsidian/plugins/obsync/` directory.
 
 ---
 
