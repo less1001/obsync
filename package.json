@@ -1,6 +1,6 @@
 {
   "name": "obsidian-obsync",
-  "version": "0.4.9",
+  "version": "0.4.10",
   "private": true,
   "type": "module",
   "main": "main.js",
