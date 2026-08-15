@@ -398,11 +398,12 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
     for (const match of matches) {
       const [fullMatch, altText, imageUrl] = match;
       try {
+        const referer = imageUrl.includes("xhscdn.com") || imageUrl.includes("xiaohongshu.com") ? "https://www.xiaohongshu.com/" : "https://mp.weixin.qq.com/";
         const response = await (0, import_obsidian.requestUrl)({
           url: imageUrl,
           headers: {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Referer": "https://mp.weixin.qq.com/"
+            "Referer": referer
           }
         });
         if (response.status >= 200 && response.status < 300) {

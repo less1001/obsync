@@ -56,15 +56,20 @@ obsync/
 
 ---
 
-## 🚀 Quick Start & Installation
+## 🚀 Installation & Getting Started
 
-### Option 1: Direct Installation (Recommended)
+### Option 1: From Obsidian Community Plugins (Recommended)
+1. Open Obsidian -> **Settings** -> **Community plugins** -> **Browse**.
+2. Search for `WeChat Obsync`.
+3. Click **Install**, then **Enable**.
+
+### Option 2: Manual Installation from Release
 1. Download `main.js`, `manifest.json`, and `styles.css` from the [Latest Release (v0.4.10)](https://github.com/less1001/obsync/releases/latest).
 2. Inside your Obsidian Vault, navigate to `.obsidian/plugins/` and create a folder named `obsync`.
 3. Place `main.js`, `manifest.json`, and `styles.css` into `.obsidian/plugins/obsync/`.
-4. Open Obsidian -> **Settings** -> **Community Plugins**, and toggle on **WeChat Obsync**.
+4. Reload Obsidian and enable **WeChat Obsync** in settings.
 
-### Option 2: Local Development & Build
+### Option 3: Local Development & Build
 1. **Clone the repository**:
    ```bash
    git clone https://github.com/less1001/obsync.git
