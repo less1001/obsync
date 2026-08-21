@@ -145,11 +145,28 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
     });
     this.app.workspace.onLayoutReady(() => {
       void this.syncNow(false);
+      this.startSyncInterval();
     });
+  }
+  startSyncInterval() {
+    if (this.syncInterval) {
+      window.clearInterval(this.syncInterval);
+      this.syncInterval = void 0;
+    }
+    const minutes = this.settings.syncIntervalMinutes || 0;
+    if (minutes > 0) {
+      this.syncInterval = window.setInterval(() => {
+        void this.syncNow(false);
+      }, minutes * 60 * 1e3);
+    }
   }
   onunload() {
     if (this.bindingPollInterval) {
       window.clearInterval(this.bindingPollInterval);
+    }
+    if (this.syncInterval) {
+      window.clearInterval(this.syncInterval);
+      this.syncInterval = void 0;
     }
   }
   async loadSettings() {
@@ -166,6 +183,7 @@ var ObsyncPlugin = class extends import_obsidian.Plugin {
   }
   async saveSettings() {
     await this.saveData(this.settings);
+    this.startSyncInterval();
   }
   async startBinding() {
     const response = await apiRequest(this.settings.apiBaseUrl, "/v1/bind/start", {
@@ -465,6 +483,13 @@ var ObsyncSettingTab = class extends import_obsidian.PluginSettingTab {
     new import_obsidian.Setting(containerEl).setName("\u4E0B\u8F7D\u6587\u7AE0\u56FE\u7247\u5230\u672C\u5730").setDesc("\u907F\u514D\u5FAE\u4FE1\u9632\u76D7\u94FE\u5BFC\u81F4\u56FE\u7247\u65E0\u6CD5\u663E\u793A\uFF0C\u5B9E\u73B0\u6587\u7AE0\u4E0E\u56FE\u7247\u7684\u6C38\u4E45\u9632\u5220\u3001\u6C38\u4E45\u79BB\u7EBF\u4FDD\u5B58\u3002").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.localizeImages).onChange(async (value) => {
         this.plugin.settings.localizeImages = value;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian.Setting(containerEl).setName("\u540C\u6B65\u95F4\u9694\uFF08\u5206\u949F\uFF09").setDesc("\u81EA\u52A8\u62C9\u53D6\u65B0\u6587\u7AE0\u7684\u65F6\u95F4\u95F4\u9694\uFF0C\u8BBE\u4E3A 0 \u7981\u7528\u81EA\u52A8\u540C\u6B65\u3002\u4FEE\u6539\u540E\u7ACB\u5373\u751F\u6548\u3002").addText(
+      (text) => text.setPlaceholder("1").setValue(String(this.plugin.settings.syncIntervalMinutes || 0)).onChange(async (value) => {
+        const minutes = Math.max(0, Math.floor(Number(value) || 0));
+        this.plugin.settings.syncIntervalMinutes = minutes;
         await this.plugin.saveSettings();
       })
     );
